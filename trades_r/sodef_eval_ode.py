@@ -253,11 +253,11 @@ y_test = y_test[1024*iii:1024*(iii+1),...]
 print('run_standard_evaluation', 'L2')
 
 
-# epsilon = 8 / 255.
-# adversary = AutoAttack(new_model, norm='Linf', eps=epsilon, version='standard')
+epsilon = 8 / 255.
+adversary = AutoAttack(model, norm='Linf', eps=epsilon, version='standard')
 
-epsilon = 0.5
-adversary = AutoAttack(model, norm='L2', eps=epsilon, version='standard')
+# epsilon = 0.5
+# adversary = AutoAttack(model, norm='L2', eps=epsilon, version='standard')
 
 
 
