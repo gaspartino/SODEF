@@ -257,7 +257,7 @@ print('run_standard_evaluation', 'L2')
 # adversary = AutoAttack(model, norm='Linf', eps=epsilon, version='standard')
 
 epsilon = 0.5
-adversary = AutoAttack(model, norm='L2', eps=epsilon, version='customFABT')
+adversary = AutoAttack(model, norm='L2', eps=epsilon, version='standard')
 
 
 
