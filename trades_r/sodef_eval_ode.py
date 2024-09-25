@@ -257,7 +257,7 @@ print('run_standard_evaluation', 'L2')
 # adversary = AutoAttack(model, norm='Linf', eps=epsilon, version='standard')
 
 epsilon = 0.5
-adversary = AutoAttack(model, norm='L2', eps=epsilon, version='customFABT')
+adversary = AutoAttack(model, norm='L2', eps=epsilon, version='standard')
 
 
 
@@ -271,6 +271,6 @@ adversary = AutoAttack(model, norm='L2', eps=epsilon, version='customFABT')
 # adversary.attacks_to_run = ['fab-t']
 # adversary.attacks_to_run = ['square']
 
-# X_adv = adversary.run_standard_evaluation(x_test, y_test, bs=256)
-X_adv = adversary.run_standard_evaluation_individual(x_test, y_test, bs=256)
+X_adv = adversary.run_standard_evaluation(x_test, y_test, bs=256)
+# X_adv = adversary.run_standard_evaluation_individual(x_test, y_test, bs=256)
 
