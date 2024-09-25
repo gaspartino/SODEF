@@ -274,6 +274,6 @@ adversary = AutoAttack(model, norm='L2', eps=epsilon, version='customFABT')
 
 X_adv = adversary.clean_accuracy(x_test, y_test, bs=256)
 
-# X_adv = adversary.run_standard_evaluation(x_test, y_test, bs=256)
-X_adv = adversary.run_standard_evaluation_individual(x_test, y_test, bs=256)
+X_adv = adversary.run_standard_evaluation(x_test, y_test, bs=256)
+# X_adv = adversary.run_standard_evaluation_individual(x_test, y_test, bs=256)
 
