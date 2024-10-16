@@ -51,7 +51,7 @@ def seed_torch(seed=0):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
-    
+   
 seed_torch()
 
 
@@ -61,11 +61,11 @@ def makedirs(dirname):
         os.makedirs(dirname)
 
 
-device = 'cuda' 
-best_acc = 0 
+device = 'cuda'
+best_acc = 0
 start_epoch = 0  
 
-    
+   
 
 def inf_generator(iterable):
     iterator = iterable.__iter__()
@@ -74,7 +74,7 @@ def inf_generator(iterable):
             yield iterator.__next__()
         except StopIteration:
             iterator = iterable.__iter__()
-            
+           
 def get_mnist_loaders(data_aug=False, batch_size=128, test_batch_size=1000, perc=1.0):
     if data_aug:
         transform_train = transforms.Compose([
@@ -297,28 +297,35 @@ t_dim = 1
 act = torch.sin
 act2 = torch.nn.functional.relu
 
+##########CONV##########
+# Camada convolucional com função concatenada
 class ConcatFC(nn.Module):
-
-    def __init__(self, dim_in, dim_out):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1):
         super(ConcatFC, self).__init__()
-        self._layer = nn.Linear(dim_in, dim_out)
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
 
     def forward(self, t, x):
-        return self._layer(x)
+        return self.conv(x)
 
-class ODEfunc_mlp(nn.Module):  # dense_resnet_relu1,2,7
-
-    def __init__(self, dim):
+# Função ODE alterada para usar convolução
+class ODEfunc_mlp(nn.Module):
+    def __init__(self, in_channels):
         super(ODEfunc_mlp, self).__init__()
-        self.fc1 = ConcatFC(fc_dim, fc_dim)
+        self.conv1 = ConcatFC(in_channels, in_channels)
         self.act1 = act
         self.nfe = 0
 
     def forward(self, t, x):
+        print('DADOS :')
+        print(x.shape)
+        print(x)
+        # alteração na dimensionalidade do x para poder ser usado na CNN
+        x = x.view(32, 1, 8, 8)  # Exemplificando um formato [batch_size, num_channels, height, width]
         self.nfe += 1
-        out = -1 * self.fc1(t, x)
+        out = -1 * self.conv1(t, x)
         out = self.act1(out)
         return out
+##########CONV##########
 
 class ODEBlocktemp(nn.Module):
 
@@ -622,7 +629,7 @@ for itr in range(5 * batches_per_epoch):
     y = y.to(device)
 
     modulelist = list(model)
-    
+   
     y0 = x
     x = modulelist[0](x)
     y1 = x
