@@ -20,9 +20,7 @@ from torchdiffeq import odeint_adjoint as odeint
 from torch.utils.data import Dataset, DataLoader
 from model import *
 
-
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 train_savepath = './data/MNIST_train_resnet_final.npz'
 test_savepath = './data/MNIST_test_resnet_final.npz'
