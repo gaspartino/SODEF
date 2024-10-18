@@ -20,6 +20,7 @@ from torchdiffeq import odeint_adjoint as odeint
 from torch.utils.data import Dataset, DataLoader
 from model import *
 
+
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 train_savepath = './data/MNIST_train_resnet_final.npz'
@@ -52,13 +53,18 @@ def seed_torch(seed=0):
     
 seed_torch()
 
+
+
 def makedirs(dirname):
     if not os.path.exists(dirname):
         os.makedirs(dirname)
 
+
 device = 'cuda' 
 best_acc = 0 
 start_epoch = 0  
+
+    
 
 def inf_generator(iterable):
     iterator = iterable.__iter__()
@@ -104,6 +110,10 @@ def get_mnist_loaders(data_aug=False, batch_size=128, test_batch_size=1000, perc
 trainloader, testloader, train_eval_loader = get_mnist_loaders(
     False, 128, 1000
 )
+
+
+
+
 
 print('==> Building model..')
 from models import *
@@ -257,12 +267,13 @@ def test(epoch):
 
 
 ############################################### Phase 1 ################################################
+'''
 makedirs(folder_savemodel)
 makedirs('./data')
 for epoch in range(0, 25):
     train(epoch)
     test(epoch)
-
+'''
 ################################################ Phase 2 ################################################
 weight_diag = 10
 weight_offdiag = 10
@@ -297,29 +308,40 @@ class ConcatFC(nn.Module):
 
 class ODEfunc_mlp(nn.Module):  # dense_resnet_relu1,2,7
 
-    def _init_(self, dim):
-        super(ODEfunc_mlp, self)._init_()
+    def __init__(self, dim):
+        super(ODEfunc_mlp, self).__init__()
         self.fc1 = ConcatFC(fc_dim, fc_dim)
         self.act1 = act
         self.nfe = 0
 
     def forward(self, t, x):
-        
-        if x.shape[0] == 32 and x.shape[1] == 64:  # Caso o batch size seja 32
-            # Reformate o tensor para [32, 1, 8, 8]
-            x = x.view(32, 1, 8, 8)
-        elif x.shape[0] == 1 and x.shape[1] == 64:  # Caso o batch size seja 1
-            # Reformate o tensor para [1, 1, 8, 8]
-            x = x.view(1, 1, 8, 8)
-        else:
-            raise ValueError("Formato inesperado de tensor: {}".format(x.shape))
-
-        # Achate x antes de passar para self.fc1
-        x = x.view(x.size(0), -1)  # [batch_size, num_features]
-
         self.nfe += 1
         out = -1 * self.fc1(t, x)
         out = self.act1(out)
+        return out
+
+class ODEfunc_cnn(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(ODEfunc_cnn, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+        self.fc1 = nn.Linear(64 * 8 * 8, out_channels)  # Ajuste conforme a saída do conv
+        self.act1 = torch.sin
+        self.nfe = 0
+
+    def forward(self, t, x):
+        self.nfe += 1
+        
+        batch_size = x.size(0)  # Tamanho do batch
+        
+        # Redimensionar para [batch_size, in_channels, height, width]
+        x = x.view(batch_size, -1, 8, 8)  # Ajuste o tamanho conforme necessário
+        out = self.conv1(x)
+        
+        # Achatar a saída para [batch_size, 64 * 8 * 8]
+        out = out.view(batch_size, -1)
+        out = self.fc1(out)
+        out = self.act1(out)
+        
         return out
 
 class ODEBlocktemp(nn.Module):
@@ -470,8 +492,10 @@ class DensemnistDatasetTest(Dataset):
 
 odesavefolder = './EXP/dense_resnet_final'
 makedirs(odesavefolder)
-odefunc = ODEfunc_mlp(0)
+# Definir a função ODE com CNN
+odefunc = ODEfunc_cnn(in_channels=1, out_channels=fc_dim)
 
+# Usar o ODEBlocktemp com a nova função ODE
 feature_layers = [ODEBlocktemp(odefunc)]
 fc_layers = [MLP_OUT()]
 
@@ -549,7 +573,7 @@ for itr in range(40 * batches_per_epoch):
                            os.path.join(odesavefolder, 'model_' + str(itr // batches_per_epoch) + '.pth'))
 
 ################################################ Phase 3, train final FC ################################################
-
+'''
 endtime = 5
 layernum = 0
 
@@ -652,3 +676,4 @@ for itr in range(5 * batches_per_epoch):
                     itr // batches_per_epoch, train_acc, val_acc
                 )
             )
+            '''
