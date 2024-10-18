@@ -270,11 +270,10 @@ def test(epoch):
 
 makedirs(folder_savemodel)
 makedirs('./data')
-'''
+
 for epoch in range(0, 25):
     train(epoch)
     test(epoch)
-'''
 ################################################ Phase 2 ################################################
 weight_diag = 10
 weight_offdiag = 10
