@@ -21,8 +21,7 @@ from torch.utils.data import Dataset, DataLoader
 from model import *
 
 
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 train_savepath = './data/MNIST_train_resnet_final.npz'
 test_savepath = './data/MNIST_test_resnet_final.npz'
@@ -270,10 +269,11 @@ def test(epoch):
 ############################################### Phase 1 ################################################
 makedirs(folder_savemodel)
 makedirs('./data')
+'''
 for epoch in range(0, 25):
     train(epoch)
     test(epoch)
-
+'''
 ################################################ Phase 2 ################################################
 weight_diag = 10
 weight_offdiag = 10
@@ -297,6 +297,13 @@ t_dim = 1
 act = torch.sin
 act2 = torch.nn.functional.relu
 
+def weight_normalization(W, softplus_c):
+    absrowsum = torch.sum(torch.abs(W), dim=1)
+    
+    scale = torch.minimum(torch.tensor(1.0).to(W.device), softplus_c / absrowsum)
+    
+    return W * scale[:, None]
+
 class ConcatFC(nn.Module):
 
     def __init__(self, dim_in, dim_out):
@@ -304,7 +311,16 @@ class ConcatFC(nn.Module):
         self._layer = nn.Linear(dim_in, dim_out)
 
     def forward(self, t, x):
-        return self._layer(x)
+        # Recuperando os pesos (W) da camada
+        W = self._layer.weight
+        b = self._layer.bias
+        
+        c = torch.max(torch.sum(torch.abs(W), dim=1))
+        # Aplica a regularização de peso
+        W_normalized = weight_normalization(W, F.softplus(c))  # Você pode ajustar o valor de `softplus_c`
+        
+        # Realiza a multiplicação matricial com os pesos normalizados
+        return F.linear(x, W_normalized, b)
 
 class ODEfunc_mlp(nn.Module):  # dense_resnet_relu1,2,7
 
