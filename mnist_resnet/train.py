@@ -21,7 +21,8 @@ from torch.utils.data import Dataset, DataLoader
 from model import *
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 train_savepath = './data/MNIST_train_resnet_final.npz'
 test_savepath = './data/MNIST_test_resnet_final.npz'
@@ -267,13 +268,12 @@ def test(epoch):
 
 
 ############################################### Phase 1 ################################################
-
 makedirs(folder_savemodel)
 makedirs('./data')
-
 for epoch in range(0, 25):
     train(epoch)
     test(epoch)
+
 ################################################ Phase 2 ################################################
 weight_diag = 10
 weight_offdiag = 10
@@ -318,30 +318,6 @@ class ODEfunc_mlp(nn.Module):  # dense_resnet_relu1,2,7
         self.nfe += 1
         out = -1 * self.fc1(t, x)
         out = self.act1(out)
-        return out
-
-class ODEfunc_cnn(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super(ODEfunc_cnn, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-        self.fc1 = nn.Linear(64 * 8 * 8, out_channels)  # Ajuste conforme a saída do conv
-        self.act1 = torch.sin
-        self.nfe = 0
-
-    def forward(self, t, x):
-        self.nfe += 1
-        
-        batch_size = x.size(0)  # Tamanho do batch
-        
-        # Redimensionar para [batch_size, in_channels, height, width]
-        x = x.view(batch_size, -1, 8, 8)  # Ajuste o tamanho conforme necessário
-        out = self.conv1(x)
-        
-        # Achatar a saída para [batch_size, 64 * 8 * 8]
-        out = out.view(batch_size, -1)
-        out = self.fc1(out)
-        out = self.act1(out)
-        
         return out
 
 class ODEBlocktemp(nn.Module):
@@ -492,10 +468,8 @@ class DensemnistDatasetTest(Dataset):
 
 odesavefolder = './EXP/dense_resnet_final'
 makedirs(odesavefolder)
-# Definir a função ODE com CNN
-odefunc = ODEfunc_cnn(in_channels=1, out_channels=fc_dim)
+odefunc = ODEfunc_mlp(0)
 
-# Usar o ODEBlocktemp com a nova função ODE
 feature_layers = [ODEBlocktemp(odefunc)]
 fc_layers = [MLP_OUT()]
 
@@ -573,7 +547,7 @@ for itr in range(40 * batches_per_epoch):
                            os.path.join(odesavefolder, 'model_' + str(itr // batches_per_epoch) + '.pth'))
 
 ################################################ Phase 3, train final FC ################################################
-'''
+
 endtime = 5
 layernum = 0
 
@@ -676,4 +650,3 @@ for itr in range(5 * batches_per_epoch):
                     itr // batches_per_epoch, train_acc, val_acc
                 )
             )
-            '''
