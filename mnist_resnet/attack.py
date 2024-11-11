@@ -552,16 +552,18 @@ classifier = PyTorchClassifier(
 
 
 def accuracy_PGD(classifier, dataset_loader):
-    attack = ProjectedGradientDescent(classifier, eps=0.3, max_iter=20)
+    attack = ProjectedGradientDescent(estimator=classifier, eps=0.3, max_iter=20)
     total_correct = 0
     for x, y in dataset_loader:
-#         x = x.to(device)
-        x = attack.generate(x=x)
-        predictions = classifier.predict(x)
+        x_np = x.cpu().detach().numpy()
+        x_adv_np = attack.generate(x=x_np)
+        x_adv = torch.tensor(x_adv_np).to(x.device)
+        predictions = classifier.predict(x_adv)
         y = one_hot(np.array(y.numpy()), 10)
         target_class = np.argmax(y, axis=1)
-        predicted_class = np.argmax(predictions, axis=1)
+        predicted_class = np.argmax(predictions, axis=1)        
         total_correct += np.sum(predicted_class == target_class)
+    
     return total_correct / len(dataset_loader.dataset)
 
 def accuracy_clean(classifier, dataset_loader):
@@ -593,13 +595,15 @@ def accuracy_FGSM(classifier, dataset_loader):
     attack = FastGradientMethod(estimator=classifier, eps=0.3)
     total_correct = 0
     for x, y in dataset_loader:
-#         x = x.to(device)
-        x = attack.generate(x=x)
-        predictions = classifier.predict(x)
+        x_np = x.cpu().detach().numpy()
+        x_adv_np = attack.generate(x=x_np)
+        x_adv = torch.tensor(x_adv_np).to(x.device)
+        predictions = classifier.predict(x_adv)
         y = one_hot(np.array(y.numpy()), 10)
         target_class = np.argmax(y, axis=1)
-        predicted_class = np.argmax(predictions, axis=1)
+        predicted_class = np.argmax(predictions, axis=1)        
         total_correct += np.sum(predicted_class == target_class)
+    
     return total_correct / len(dataset_loader.dataset)
 
 # def accuracy_FGSM(classifier, dataset_loader):
