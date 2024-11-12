@@ -33,12 +33,12 @@ timescale = 1
 layernum = 0
 fc_dim = 64
 
-# folder_savemodel = './EXP_trained/MNIST_resnet0'
-folder_savemodel = './EXP_trained/MNIST_resnet_final'
+# folder_savemodel = './EXP/MNIST_resnet0'
+folder_savemodel = './EXP/MNIST_resnet_final'
 
 
-folder = './EXP_trained/resnetfct5_15/model.pth'
-# folder = './EXP_trained/resnetfc20_relu_final/model.pth'
+folder = './EXP/resnetfct5_15/model.pth'
+# folder = './EXP/resnetfc20_relu_final/model.pth'
 
 
 act = torch.sin 
@@ -421,7 +421,7 @@ device = 'cuda' #if torch.cuda.is_available() else 'cpu'
 # print(device)
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
-fc_max = './EXP_trained/fc_maxrowdistance_64_10/ckpt.pth'
+fc_max = './EXP/fc_maxrowdistance_64_10/ckpt.pth'
 saved_temp = torch.load(fc_max,map_location=torch.device('cpu'))
 matrix_temp = saved_temp['matrix']
 print(matrix_temp.shape)
