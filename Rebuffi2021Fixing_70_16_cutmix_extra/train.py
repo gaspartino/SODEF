@@ -119,7 +119,7 @@ torch.manual_seed(args.seed)
 torch.cuda.manual_seed(args.seed)
 
 
-trainloader, testloader, train_eval_loader, _ = get_loaders(args.data_dir, args.batch_size)
+trainloader, testloader, train_eval_loader, _ = get_loaders(args.data_dir, args.batch_size, 'CUSTOM')
 
 
 from robustbench import load_model
@@ -402,7 +402,8 @@ optimizer = torch.optim.Adam(ODE_FCmodel.parameters(), lr=1e-2, eps=1e-3, amsgra
 
 
 for itr in range(ODE_FC_ode_epoch * batches_per_epoch):
-
+    
+    print('\nEpoch: %d' % itr)
     optimizer.zero_grad()
     x, y = data_gen.__next__()
     x = x.to(device)
@@ -418,11 +419,8 @@ for itr in range(ODE_FC_ode_epoch * batches_per_epoch):
     regu1, regu2  = df_dz_regularizer(odefunc, y00)
     regu1 = regu1.mean()
     regu2 = regu2.mean()
-    print("regu1:weight_diag "+str(regu1.item())+':'+str(weight_diag))
-    print("regu2:weight_offdiag "+str(regu2.item())+':'+str(weight_offdiag))
     regu3 = f_regularizer(odefunc, y00)
     regu3 = regu3.mean()
-    print("regu3:weight_f "+str(regu3.item())+':'+str(weight_f))
     loss = weight_f*regu3 + weight_diag*regu1+ weight_offdiag*regu2
 #         loss = weight_f*regu3 
 
