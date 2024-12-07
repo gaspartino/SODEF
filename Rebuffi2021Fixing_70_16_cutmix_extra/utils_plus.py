@@ -41,6 +41,14 @@ def get_loaders(dir_, batch_size, DATASET='CIFAR10'):
             dir_, train=True, transform=train_transform, download=True)
         test_dataset = datasets.CIFAR100(
             dir_, train=False, transform=test_transform, download=True)
+    elif DATASET == 'CUSTOM':
+        train_path = '/kaggle/input/flowers-dataset/train' 
+        test_path = '/kaggle/input/flowers-dataset/test' 
+        valid_path = '/kaggle/input/flowers-dataset/valid'    
+
+        train_dataset = datasets.ImageFolder(root=train_path, transform=train_transform)
+        test_dataset = datasets.ImageFolder(root=test_path, transform=test_transform)
+        train_dataset__ = datasets.ImageFolder(root=valid_path, transform=test_transform)        
 
     train_loader = torch.utils.data.DataLoader(
         dataset=train_dataset,
