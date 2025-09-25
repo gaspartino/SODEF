@@ -185,7 +185,6 @@ import numpy as np
 from torchvision.models import resnet34, ResNet34_Weights
 from torch.utils.data import DataLoader
 from types import SimpleNamespace
-from model_lbdn import KWL
 from model_lip import *
 
 print('==> Building model..')
@@ -202,7 +201,7 @@ config = SimpleNamespace(
 )
 
 model = getModel(config).to(device)
-model_state = torch.load(f"/kaggle/input/lisa_lip_models/pytorch/default/4/lisa_lipkernel_4c1fc.ckpt")
+model_state = torch.load(f"EXP/lisa_lipkernel_4c1fc.ckpt")
 
 try:
     model.load_state_dict(model_state)
