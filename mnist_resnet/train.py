@@ -109,9 +109,16 @@ def get_mnist_loaders(data_aug=False, batch_size=128, test_batch_size=1000, perc
     return train_loader, test_loader, train_eval_loader
 
 
+import kagglehub
+
 def lisa_loaders(train_batch_size=256, test_batch_size=64):
-    train_dir = "/kaggle/input/cropped-lisa-traffic-light-dataset/cropped_lisa_1/train_1"
-    val_dir = "/kaggle/input/cropped-lisa-traffic-light-dataset/cropped_lisa_1/val_1"
+
+    path = kagglehub.dataset_download("chandanakuntala/cropped-lisa-traffic-light-dataset")
+    
+    print("Path to dataset files:", path)
+
+    train_dir = f"{path}/cropped_lisa_1/train_1"
+    val_dir = f"{path}/cropped_lisa_1/val_1"
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
