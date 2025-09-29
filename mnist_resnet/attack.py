@@ -23,7 +23,7 @@ from art.utils import load_mnist
 from models import *
 from torchvision.datasets import MNIST, CIFAR10, ImageFolder
 import os
-import kagglehub
+
 os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 np.set_printoptions(threshold=np.inf, suppress=True)
@@ -371,6 +371,8 @@ def bstl_loaders(train_batch_size=256, test_batch_size=64):
                              shuffle=False, pin_memory=True)
     return train_loader, test_loader, train_eval_loader, test_data, 4
 
+import kagglehub
+
 def lisa_loaders(train_batch_size=256, test_batch_size=64):
     path = kagglehub.dataset_download("chandanakuntala/cropped-lisa-traffic-light-dataset")
     
@@ -395,7 +397,7 @@ def lisa_loaders(train_batch_size=256, test_batch_size=64):
     test_loader = DataLoader(test_dataset, batch_size=test_batch_size, shuffle=False, num_workers=2)
     train_eval_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=False, num_workers=2)
 
-    return train_loader, test_loader, train_eval_loader, test_dataset, 7
+    return train_loader, test_loader, train_eval_loader, 7
 
 trainloader, testloader, train_eval_loader, testset, num_classes = lisa_loaders()
 
@@ -452,7 +454,7 @@ import numpy as np
 from torchvision.models import resnet34, ResNet34_Weights
 from torch.utils.data import DataLoader
 from types import SimpleNamespace
-from model_lbdn import KWL
+#from model_lbdn import KWL
 from model_lip import *
 
 print('==> Building model..')
