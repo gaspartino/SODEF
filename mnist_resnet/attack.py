@@ -743,7 +743,7 @@ for eps in all_eps:
     #accuracy = accuracy_MIM_alt(classifier, testloader, eps)
     #print(f"Accuracy on MIM (ε={round(eps,2)}): {round(accuracy * 100, 2)}%")
 
-    accuracy = accuracy_AA(model, testloader, eps, 4, device = device)
+    accuracy = accuracy_AA(model, testloader, eps, num_classes, device = device)
     print(f"Accuracy on AA (ε={round(eps,2)}): {round(accuracy * 100, 2)}%")
 #for ep in eps:
   
