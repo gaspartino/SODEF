@@ -112,7 +112,6 @@ def get_mnist_loaders(data_aug=False, batch_size=128, test_batch_size=1000, perc
 import kagglehub
 
 def lisa_loaders(train_batch_size=256, test_batch_size=64):
-
     path = kagglehub.dataset_download("chandanakuntala/cropped-lisa-traffic-light-dataset")
     
     print("Path to dataset files:", path)
@@ -125,8 +124,8 @@ def lisa_loaders(train_batch_size=256, test_batch_size=64):
     transform = transforms.Compose([
         transforms.Resize((32, 32)),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225])
+        #transforms.Normalize(mean=[0.485, 0.456, 0.406],
+        #                     std=[0.229, 0.224, 0.225])
     ])
 
     train_dataset = ImageFolder(train_dir, transform=transform)
