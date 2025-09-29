@@ -376,7 +376,7 @@ def lisa_loaders(train_batch_size=256, test_batch_size=64):
     print("Path to dataset files:", path)
 
     train_dir = f"{path}/cropped_lisa_1/train_1"
-    val_dir = f"{path}/cropped_lisa_1/val_1""
+    val_dir = f"{path}/cropped_lisa_1/val_1"
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -504,7 +504,7 @@ config = SimpleNamespace(
 )
 
 model = getModel(config).to(device)
-model_state = torch.load(f"/kaggle/input/lisa_lip_models/pytorch/default/4/lisa_lipkernel_4c1fc.ckpt")
+model_state = torch.load(f"EXP/lisa_lipkernel_4c1fc.ckpt")
 
 try:
     model.load_state_dict(model_state)
