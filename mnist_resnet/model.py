@@ -110,27 +110,14 @@ class MLP_OUT_LINEAR(nn.Module):
         h1 = self.fc0(input_)
         return h1
 
-
-
-    
-fc_max = './EXP/fc_maxrowdistance_64_10/ckpt.pth'
-saved_temp = torch.load(fc_max)
-matrix_temp = saved_temp['matrix']
-print(matrix_temp.shape)
-
-
 class MLP_OUT_BALL(nn.Module):
     def __init__(self):
         super(MLP_OUT_BALL, self).__init__()
         self.fc0 = nn.Linear(64, 7, bias=False)
-        self.fc0.weight.data = matrix_temp
     def forward(self, input_):
         h1 = self.fc0(input_)
         return h1  
-        
-
-        
-
+         
 class fcs(nn.Module):
 
     def __init__(self, in_features=512):
