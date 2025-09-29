@@ -553,8 +553,9 @@ model = nn.Sequential(*net, tempnn_,fcs_temp,  *model_dense).to(device)
 
 if torch.cuda.device_count() > 1:
     print(f"Usando {torch.cuda.device_count()} GPUs com DataParallel")
-    model = nn.DataParallel(model)model.eval()
+    model = nn.DataParallel(model)
     
+model.eval()    
 print(model)
 
 # Step 2a: Define the loss function and the optimizer
