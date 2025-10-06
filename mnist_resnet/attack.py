@@ -454,48 +454,9 @@ import numpy as np
 from torchvision.models import resnet34, ResNet34_Weights
 from torch.utils.data import DataLoader
 from types import SimpleNamespace
-#from model_lbdn import KWL
 from model_lip import *
 
 print('==> Building model..')
-'''
-scale = "medium"
-width = {
-    'small': 1,
-    'medium': 2,
-    'large': 4
-}[scale]
-
-config = SimpleNamespace(
-    in_channels=3,
-    img_size=32,
-    num_classes=7,
-    gamma=100,
-    LLN=False,
-    width=width,
-    layer='Sandwich_alt' 
-)
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-kwl_cnn = KWL(config).to(device)  # move modelo para GPU
-model_state = torch.load("/kaggle/input/kwl_lisa/pytorch/default/2/kwl(1fc)_large_sandwich_lisa_natural.ckpt", map_location=device)
-
-xshape = (1, config.in_channels, config.img_size, config.img_size)
-x = (torch.rand(xshape) + 0.3 * torch.randn(xshape)).to(device)  # move entrada para GPU
-
-kwl_cnn.load_state_dict(model_state, strict=False)
-
-kwl_cnn(x)  # agora tudo está no mesmo dispositivo
-
-# Congelar parâmetros
-for param in kwl_cnn.parameters():
-    param.requires_grad = False
-
-# Criar modelo final
-net = nn.Sequential(*list(kwl_cnn.model.children())[:4]).to(device)
-fcs_temp = fcs(in_features=64*width) 
-'''
 
 config = SimpleNamespace(
     model="Lip4C1F",
@@ -565,15 +526,13 @@ print(model)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.01)
 
-
-
 classifier = PyTorchClassifier(
     model=model,
     clip_values=(0, 1),
     loss=criterion,
     optimizer=optimizer,
     input_shape=(3, 32, 32),
-    nb_classes=4,
+    nb_classes=num_classes,
     device_type="gpu"
 )
 print("model size")
@@ -650,7 +609,7 @@ def accuracy_AA(model, dataset_loader, eps, num_classes, device):
 
     return accuracy
 
-def accuracy_FGSM_alt(classifier, dataset_loader, eps):
+def accuracy_FGSM(classifier, dataset_loader, eps):
     attack = torchattacks.FGSM(model, eps=eps)
     total_correct = 0
     total_samples = 0
@@ -658,7 +617,6 @@ def accuracy_FGSM_alt(classifier, dataset_loader, eps):
     for x, y in dataset_loader:
         x, y = x.to(device), y.to(device)
 
-        # Gerar amostras adversariais
         x_adv = attack(x, y)
 
         # Fazer previsões no modelo adversarial
@@ -672,7 +630,7 @@ def accuracy_FGSM_alt(classifier, dataset_loader, eps):
 
     return total_correct / total_samples
 
-def accuracy_PGD_alt(classifier, dataset_loader, eps):
+def accuracy_PGD(classifier, dataset_loader, eps):
     attack = torchattacks.PGD(model, eps=eps)
     total_correct = 0
     total_samples = 0
@@ -694,7 +652,7 @@ def accuracy_PGD_alt(classifier, dataset_loader, eps):
 
     return total_correct / total_samples
 
-def accuracy_MIM_alt(classifier, dataset_loader, eps):
+def accuracy_MIM(classifier, dataset_loader, eps):
     attack = torchattacks.MIFGSM(model, eps=eps)
     total_correct = 0
     total_samples = 0
@@ -702,63 +660,32 @@ def accuracy_MIM_alt(classifier, dataset_loader, eps):
     for x, y in dataset_loader:
         x, y = x.to(device), y.to(device)
 
-        # Gerar amostras adversariais
         x_adv = attack(x, y)
 
-        # Fazer previsões no modelo adversarial
         with torch.no_grad():
             predictions = classifier.model(x_adv)  # Usa o modelo diretamente, mantendo os tensores na GPU
             predicted_class = predictions.argmax(dim=1)  # Obtém a classe prevista diretamente em PyTorch
 
-        # Contar acertos
         total_correct += (predicted_class == y).sum().item()
         total_samples += y.size(0)
 
     return total_correct / total_samples
     
-#all_eps = [0.01, 0.02, 8/255, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
-all_eps = [8/255, 0.1]
+all_eps = [0.01, 0.02, 8/255, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
+#all_eps = [8/255, 0.1]
 
-# Aplicar AutoAttack para cada valor de epsilon
 for eps in all_eps:
     accuracy = accuracy_FGSM_alt(classifier, testloader, eps)
     print(f"Accuracy on FGSM (ε={round(eps,2)}): {round(accuracy * 100, 2)}%")
 
+for eps in all_eps:
     accuracy = accuracy_PGD_alt(classifier, testloader, eps)
     print(f"Accuracy on PGD (ε={round(eps,2)}): {round(accuracy * 100, 2)}%")
-    
-    #accuracy = accuracy_MIM_alt(classifier, testloader, eps)
-    #print(f"Accuracy on MIM (ε={round(eps,2)}): {round(accuracy * 100, 2)}%")
 
-    #accuracy = accuracy_AA(model, testloader, eps, 4, device = device)
-    #print(f"Accuracy on AA (ε={round(eps,2)}): {round(accuracy * 100, 2)}%")
+for eps in all_eps:  
+    accuracy = accuracy_MIM_alt(classifier, testloader, eps)
+    print(f"Accuracy on MIM (ε={round(eps,2)}): {round(accuracy * 100, 2)}%")
 
 for eps in all_eps:
-    #accuracy = accuracy_FGSM_alt(classifier, testloader, eps)
-    #print(f"Accuracy on FGSM (ε={round(eps,2)}): {round(accuracy * 100, 2)}%")
-
-    #accuracy = accuracy_PGD_alt(classifier, testloader, eps)
-    #print(f"Accuracy on PGD (ε={round(eps,2)}): {round(accuracy * 100, 2)}%")
-    
-    #accuracy = accuracy_MIM_alt(classifier, testloader, eps)
-    #print(f"Accuracy on MIM (ε={round(eps,2)}): {round(accuracy * 100, 2)}%")
-
     accuracy = accuracy_AA(model, testloader, eps, num_classes, device = device)
     print(f"Accuracy on AA (ε={round(eps,2)}): {round(accuracy * 100, 2)}%")
-#for ep in eps:
-  
-
-# from robustbench.data import _load_dataset
-
-# # from robustbench.data import load_cifar10
-# epsilon = 0.3
-# batch_size = 50
-
-# # x_test, y_test = load_cifar10(n_examples=500)
-# x_test, y_test = _load_dataset(testset,50)
-
-
-# from autoattack import AutoAttack
-# adversary = AutoAttack(model, norm='Linf', eps=epsilon, version='standard')
-
-# x_adv = adversary.run_standard_evaluation(x_test, y_test, bs=batch_size)
