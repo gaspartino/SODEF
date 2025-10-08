@@ -35,6 +35,17 @@ folder = './EXP/resnetfct5_15/model.pth'
 
 act = torch.sin 
 
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--batch-size', default=512, type=int)
+    parser.add_argument('--dataset', default='lisa', type=str)
+    parser.add_argument('--normalize', action='store_true', help='Ativa normalização dos dados')
+    parser.add_argument('--is-lip', action='store_true', help='Usa dimensão 32 (LIP) ao invés de 64')
+    return parser.parse_args()
+
+
+args = get_args()
+
 saved = torch.load(folder, weights_only=False)
 print(folder)
 
@@ -166,27 +177,28 @@ class ORTHFC_NOBAIS(nn.Module):
 
     def forward(self, x):
         return self.linear(x)
+        
 class MLP_OUT_ORT(nn.Module):
-    def __init__(self):
+    def __init__(self, out=10):
         super(MLP_OUT_ORT, self).__init__()
-        self.fc0 = ORTHFC(fc_dim, 7, False)#nn.Linear(fc_dim, 4)
+        self.fc0 = ORTHFC(fc_dim, out, False)#nn.Linear(fc_dim, 4)
     def forward(self, input_):
         h1 = self.fc0(input_)
         return h1
 
 class MLP_OUT_final(nn.Module):
 
-    def __init__(self):
+    def __init__(self, out=10):
         super(MLP_OUT_final, self).__init__()
-        self.fc0 = nn.Linear(fc_dim, 7)
+        self.fc0 = nn.Linear(fc_dim, out)
     def forward(self, input_):
         h1 = self.fc0(input_)
         return h1
 
 class MLP_OUT_BALL(nn.Module):
-    def __init__(self):
+    def __init__(self, out=10):
         super(MLP_OUT_BALL, self).__init__()
-        self.fc0 = nn.Linear(64, 7, bias=False)
+        self.fc0 = nn.Linear(64, out, bias=False)
     def forward(self, input_):
         h1 = self.fc0(input_)
         return h1  
@@ -350,11 +362,48 @@ def get_cifar10_loaders(data_aug=False, batch_size=128, test_batch_size=1000):
 
     return train_loader, test_loader, train_eval_loader, testset
 
-def bstl_loaders(train_batch_size=256, test_batch_size=64):
-    transform = transforms.Compose([
-        transforms.Resize((32, 64)),
-        transforms.ToTensor(),
-    ])
+def lisa_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
+    path = kagglehub.dataset_download("chandanakuntala/cropped-lisa-traffic-light-dataset")
+    
+    print("Path to dataset files:", path)
+
+    train_dir = f"{path}/cropped_lisa_1/train_1"
+    val_dir = f"{path}/cropped_lisa_1/val_1"
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    transform_list = [transforms.Resize((32, 32)), transforms.ToTensor()]
+
+    if normalize:
+        transform_list.append(
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])
+        )
+
+    transform = transforms.Compose(transform_list)
+
+    train_dataset = ImageFolder(train_dir, transform=transform)
+    test_dataset = ImageFolder(val_dir, transform=transform)
+
+    train_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=True, num_workers=2)
+    test_loader = DataLoader(test_dataset, batch_size=test_batch_size, shuffle=False, num_workers=2)
+    train_eval_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=False, num_workers=2)
+
+    return train_loader, test_loader, train_eval_loader, 7
+
+
+def bstl_loaders(train_batch_size=256, test_batch_size=64, normalize=False, is_lip=True):
+    dim = 32 if is_lip else 64
+
+    transform_list = [transforms.Resize((32, dim)), transforms.ToTensor()]
+
+    if normalize:
+        transform_list.append(
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])
+        )
+
+    transform = transforms.Compose(transform_list)
     
     data_dir = '/kaggle/input/bstl-dataset'
     train_dir = f"{data_dir}/train"
@@ -369,37 +418,21 @@ def bstl_loaders(train_batch_size=256, test_batch_size=64):
                             shuffle=False, pin_memory=True)
     train_eval_loader = DataLoader(train_data, batch_size=train_batch_size,
                              shuffle=False, pin_memory=True)
-    return train_loader, test_loader, train_eval_loader, test_data, 4
+    return train_loader, test_loader, train_eval_loader, 4
 
-import kagglehub
-
-def lisa_loaders(train_batch_size=256, test_batch_size=64):
-    path = kagglehub.dataset_download("chandanakuntala/cropped-lisa-traffic-light-dataset")
-    
-    print("Path to dataset files:", path)
-
-    train_dir = f"{path}/cropped_lisa_1/train_1"
-    val_dir = f"{path}/cropped_lisa_1/val_1"
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    transform = transforms.Compose([
-        transforms.Resize((32, 32)),
-        transforms.ToTensor(),
-        #transforms.Normalize(mean=[0.485, 0.456, 0.406],
-        #                     std=[0.229, 0.224, 0.225])
-    ])
-
-    train_dataset = ImageFolder(train_dir, transform=transform)
-    test_dataset = ImageFolder(val_dir, transform=transform)
-
-    train_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=True, num_workers=2)
-    test_loader = DataLoader(test_dataset, batch_size=test_batch_size, shuffle=False, num_workers=2)
-    train_eval_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=False, num_workers=2)
-
-    return train_loader, test_loader, train_eval_loader, 7
-
-trainloader, testloader, train_eval_loader, testset, num_classes = lisa_loaders()
+if args.dataset == 'lisa':
+    trainloader, testloader, train_eval_loader, num_classes = lisa_loaders(
+        train_batch_size=args.batch_size,
+        test_batch_size=args.batch_size,
+        normalize=args.normalize
+    )
+else:
+    trainloader, testloader, train_eval_loader, num_classes = bstl_loaders(
+        train_batch_size=args.batch_size,
+        test_batch_size=args.batch_size,
+        normalize=args.normalize,
+        is_lip=args.is_lip
+    )
 
 class fcs(nn.Module):
 
@@ -451,6 +484,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
+import kagglehub
 from torchvision.models import resnet34, ResNet34_Weights
 from torch.utils.data import DataLoader
 from types import SimpleNamespace
@@ -458,39 +492,53 @@ from model_lip import *
 
 print('==> Building model..')
 
-config = SimpleNamespace(
-    model="Lip4C1F",
-    in_channels=3,
-    img_size=32,
-    num_classes=7,
-    gamma=1.0,       
-    layer="Lip2C1F"          
-)
+if args.is_lip:
+    config = SimpleNamespace(
+        model="Lip4C1F",
+        in_channels=3,
+        img_size=32,
+        num_classes=num_classes,
+        gamma=1.0,
+        layer="Lip2C1F"
+    )
 
-model = getModel(config).to(device)
-model_state = torch.load(f"EXP/lisa_lipkernel_4c1fc.ckpt")
+    model = getModel(config).to(device)
 
-try:
-    model.load_state_dict(model_state)
-except RuntimeError:
-    new_state_dict = OrderedDict()
-    for k, v in model_state.items():
-        new_state_dict[k.replace("module.", "")] = v
-    model.load_state_dict(new_state_dict)
+    model_state = torch.load(f"EXP/{args.dataset}_lipkernel_4c1fc_nat.ckpt.ckpt", map_location=device)
 
-lip_cnn_final = LipConvExtractor(model).to(device)
-for param in lip_cnn_final.parameters():
-    param.requires_grad = False
+    try:
+        model.load_state_dict(model_state)
+    except RuntimeError:
+        new_state_dict = OrderedDict()
+        for k, v in model_state.items():
+            new_state_dict[k.replace("module.", "")] = v
+        model.load_state_dict(new_state_dict)
 
-net = [lip_cnn_final]
+    lip_cnn_final = LipConvExtractor(model).to(device)
+    for param in lip_cnn_final.parameters():
+        param.requires_grad = False
 
-#fcs_temp = fcs(in_features=32*width) #lbdn 
-fcs_temp = fcs(in_features=128)  #lip
-# fc_layersa = nn.Linear(fc_dim, 4,  bias=True)
-# fc_layersa = MLP_OUT_ORT()
-fc_layersa = MLP_OUT_BALL()
+    fcs_temp = fcs(in_features=128)  
+    fc_layers = MLP_OUT_BALL(num_classes)
+    for param in fc_layers.parameters():
+        param.requires_grad = False
 
-model_fea = nn.Sequential(*net, fcs_temp, fc_layersa).to(device)
+    net = nn.Sequential(lip_cnn_final, fcs_temp, fc_layers).to(device)
+
+else:
+    net = resnet34(weights=ResNet34_Weights.DEFAULT)
+    net = net.to(device)
+
+    net = nn.Sequential(*list(net.children())[:-1])
+
+    fcs_temp = fcs()  
+    fc_layers = MLP_OUT_BALL(num_classes)
+    for param in fc_layers.parameters():
+        param.requires_grad = False
+
+    net = nn.Sequential(net, fcs_temp, fc_layers).to(device)
+
+model_fea = net
 saved_temp = torch.load(folder_savemodel+'/ckpt.pth')
 # saved_temp = torch.load(folder_savemodel+'/ckpt-Copy1.pth')
 statedic_temp = saved_temp['net']
@@ -499,7 +547,7 @@ model_fea.load_state_dict(statedic_temp, strict=False)
     
 odefunc = ODEfunc_mlp(0)
 feature_layers = [ODEBlock(odefunc)] 
-fc_layers = [MLP_OUT_final()]
+fc_layers = [MLP_OUT_final(num_classes)]
 model_dense = nn.Sequential( *feature_layers, *fc_layers).to(device)
 statedic = saved['state_dict']
 model_dense.load_state_dict(statedic, strict=False)
