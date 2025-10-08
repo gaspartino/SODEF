@@ -103,17 +103,17 @@ class ORTHFC(nn.Module):
     
     
 class MLP_OUT_LINEAR(nn.Module):
-    def __init__(self):
+    def __init__(self, out_features=10):
         super(MLP_OUT_LINEAR, self).__init__()
-        self.fc0 = nn.Linear(64, 7)
+        self.fc0 = nn.Linear(64, out_features)
     def forward(self, input_):
         h1 = self.fc0(input_)
         return h1
 
 class MLP_OUT_BALL(nn.Module):
-    def __init__(self):
+    def __init__(self, out_features=10):
         super(MLP_OUT_BALL, self).__init__()
-        self.fc0 = nn.Linear(64, 7, bias=False)
+        self.fc0 = nn.Linear(64, out_features, bias=False)
     def forward(self, input_):
         h1 = self.fc0(input_)
         return h1  
