@@ -31,9 +31,11 @@ folder_savemodel = './EXP/MNIST_resnet_final'
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--batch-size', default=128, type=int)
+    parser.add_argument('--batch-size', default=512, type=int)
     parser.add_argument('--data-dir', default='../cifar-data', type=str)
     parser.add_argument('--dataset', default='lisa', type=str)
+    parser.add_argument('--normalize', action='store_true', help='Ativa normalização dos dados')
+    parser.add_argument('--is-lip', action='store_true', help='Usa dimensão 32 (LIP) ao invés de 64')
     parser.add_argument('--epsilon', default=8, type=int)
     parser.add_argument('--out-dir', default='train_fgsm_output', type=str, help='Output directory')
     parser.add_argument('--seed', default=0, type=int, help='Random seed')
@@ -171,8 +173,20 @@ def bstl_loaders(train_batch_size=256, test_batch_size=64, normalize=False, is_l
                              shuffle=False, pin_memory=True)
     return train_loader, test_loader, train_eval_loader, 4
 
-trainloader, testloader, train_eval_loader, num_classes = lisa_loaders(512, 512)
-
+if args.dataset == 'lisa':
+    trainloader, testloader, train_eval_loader, num_classes = lisa_loaders(
+        train_batch_size=args.batch_size,
+        test_batch_size=args.batch_size,
+        normalize=args.normalize
+    )
+else:
+    trainloader, testloader, train_eval_loader, num_classes = bstl_loaders(
+        train_batch_size=args.batch_size,
+        test_batch_size=args.batch_size,
+        normalize=args.normalize,
+        is_lip=args.is_lip
+    )
+    
 class LipConvExtractor(nn.Module):
     def __init__(self, lip_model):
         super().__init__()
@@ -210,44 +224,51 @@ print('==> Building model..')
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-config = SimpleNamespace(
-    model="Lip4C1F",
-    in_channels=3,
-    img_size=32,
-    num_classes=num_classes,
-    gamma=1.0,       
-    layer="Lip2C1F"          
-)
+if args.is_lip:
+    config = SimpleNamespace(
+        model="Lip4C1F",
+        in_channels=3,
+        img_size=32,
+        num_classes=num_classes,
+        gamma=1.0,
+        layer="Lip2C1F"
+    )
 
-model = getModel(config).to(device)
+    model = getModel(config).to(device)
 
-if args.dataset == 'lisa':
-    model_path = "EXP/lisa_lipkernel_4c1fc_nat.ckpt.ckpt"
+    model_state = torch.load(f"EXP/{args.dataset}_lipkernel_4c1fc_nat.ckpt.ckpt", map_location=device)
+
+    try:
+        model.load_state_dict(model_state)
+    except RuntimeError:
+        new_state_dict = OrderedDict()
+        for k, v in model_state.items():
+            new_state_dict[k.replace("module.", "")] = v
+        model.load_state_dict(new_state_dict)
+
+    lip_cnn_final = LipConvExtractor(model).to(device)
+    for param in lip_cnn_final.parameters():
+        param.requires_grad = False
+
+    fcs_temp = fcs(in_features=128)  
+    fc_layers = MLP_OUT_BALL(num_classes)
+    for param in fc_layers.parameters():
+        param.requires_grad = False
+
+    net = nn.Sequential(lip_cnn_final, fcs_temp, fc_layers).to(device)
+
 else:
-    model_path = "EXP/bstl_lipkernel_4c1fc_nat.ckpt.ckpt"
+    net = resnet34(weights=ResNet34_Weights.DEFAULT)
+    net = net.to(device)
 
-model_state = torch.load(f"EXP/lisa_lipkernel_4c1fc.ckpt")
+    net = nn.Sequential(*list(net.children())[:-1])
 
-try:
-    model.load_state_dict(model_state)
-except RuntimeError:
-    new_state_dict = OrderedDict()
-    for k, v in model_state.items():
-        new_state_dict[k.replace("module.", "")] = v
-    model.load_state_dict(new_state_dict)
+    fcs_temp = fcs()  
+    fc_layers = MLP_OUT_BALL(num_classes)
+    for param in fc_layers.parameters():
+        param.requires_grad = False
 
-lip_cnn_final = LipConvExtractor(model).to(device)
-for param in lip_cnn_final.parameters():
-    param.requires_grad = False
-
-net = [lip_cnn_final]
-
-#fcs_temp = fcs(in_features=32*width) #lbdn 
-fcs_temp = fcs(in_features=128)  #lip
-fc_layers = MLP_OUT_BALL(num_classes)  
-for param in fc_layers.parameters():
-    param.requires_grad = False
-net = nn.Sequential(*net, fcs_temp, fc_layers).to(device)
+    net = nn.Sequential(net, fcs_temp, fc_layers).to(device)
 
 print(net)
 #cure = CURE_Regularizer(net, device, lambda_=4.0)
