@@ -236,7 +236,7 @@ if args.is_lip:
 
     model = getModel(config).to(device)
 
-    model_state = torch.load(f"EXP/{args.dataset}_lipkernel_4c1fc_nat.ckpt.ckpt", map_location=device)
+    model_state = torch.load(f"EXP/{args.dataset}_lipkernel_4c1fc_nat.ckpt", map_location=device)
 
     try:
         model.load_state_dict(model_state)
