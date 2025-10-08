@@ -235,132 +235,6 @@ start_epoch = 0  # start from epoch 0 or last checkpoint epoch
 
 # Data
 print('==> Preparing data..')
-def get_mnist_loaders(data_aug=False, batch_size=128, test_batch_size=1000, perc=1.0):
-    if data_aug:
-        transform_train = transforms.Compose([
-            transforms.RandomCrop(28, padding=4),
-            transforms.ToTensor(),
-        ])
-    else:
-        transform_train = transforms.Compose([
-            transforms.ToTensor(),
-        ])
-
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-    ])
-
-    train_loader = DataLoader(
-        datasets.MNIST(root='.data/mnist', train=True, download=True, transform=transform_train), batch_size=batch_size,
-        shuffle=True, num_workers=2, drop_last=True
-    )
-
-    train_eval_loader = DataLoader(
-        datasets.MNIST(root='.data/mnist', train=True, download=True, transform=transform_test),
-        batch_size=batch_size, shuffle=False, num_workers=2, drop_last=True
-    )
-
-    test_loader = DataLoader(
-        datasets.MNIST(root='.data/mnist', train=False, download=True, transform=transform_test),
-        batch_size=batch_size, shuffle=False, num_workers=2, drop_last=True
-    )
-    testset = datasets.MNIST(root='.data/mnist', train=False, download=True, transform=transform_test)
-    return train_loader, test_loader, train_eval_loader, testset
-
-def get_cars_loaders(data_aug=False, batch_size=64, test_batch_size=1000):
-    train_path = '/content/SODEF/Cars Dataset/train'
-    test_path = '/content/SODEF/Cars Dataset/test'
-
-    if data_aug:
-        train_transform = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomRotation(15),
-            transforms.ToTensor(),
-        ])
-    else:
-        train_transform = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-        ])
-
-    test_transform = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-    ])
-
-    train_loader = DataLoader(
-        datasets.ImageFolder(root=train_path, transform=train_transform),
-        batch_size=batch_size, shuffle=True, num_workers=1, drop_last=True
-    )
-
-    train_eval_loader = DataLoader(
-        datasets.ImageFolder(root=train_path, transform=test_transform),
-        batch_size=batch_size, shuffle=False, num_workers=1, drop_last=True
-    )
-
-    test_loader = DataLoader(
-        datasets.ImageFolder(root=test_path, transform=test_transform),
-        batch_size=test_batch_size, shuffle=False, num_workers=1, drop_last=True
-    )
-    testset = datasets.ImageFolder(root=test_path, transform=test_transform)
-    return train_loader, test_loader, train_eval_loader, testset
-
-
-def get_sign(batch_size=128):
-    train_dir = "/content/train"
-    test_dir = "/content/test"
-
-    transform = transforms.Compose([
-        transforms.Resize((64, 32)),
-        transforms.ToTensor()
-    ])
-
-    train_dataset = datasets.ImageFolder(root=train_dir, transform=transform)
-    test_dataset = datasets.ImageFolder(root=test_dir, transform=transform)
-
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
-    train_eval_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
-
-    print(f"Número de imagens em train: {len(train_dataset)}")
-    print(f"Número de imagens em test: {len(test_dataset)}")
-    print(f"Classes: {train_dataset.classes}")
-
-    return train_loader, test_loader, train_eval_loader, test_dataset
-def get_cifar10_loaders(data_aug=False, batch_size=128, test_batch_size=1000):
-    if data_aug:
-        transform_train = transforms.Compose([
-            transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-        ])
-    else:
-        transform_train = transforms.Compose([
-            transforms.ToTensor(),
-        ])
-
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-    ])
-
-    train_loader = DataLoader(
-        datasets.CIFAR10(root='.data/cifar10', train=True, download=True, transform=transform_train),
-        batch_size=batch_size, shuffle=True, num_workers=1, drop_last=True
-    )
-
-    train_eval_loader = DataLoader(
-        datasets.CIFAR10(root='.data/cifar10', train=True, download=True, transform=transform_test),
-        batch_size=batch_size, shuffle=False, num_workers=1, drop_last=True
-    )
-
-    test_loader = DataLoader(
-        datasets.CIFAR10(root='.data/cifar10', train=False, download=True, transform=transform_test),
-        batch_size=test_batch_size, shuffle=False, num_workers=1, drop_last=True
-    )
-    testset = datasets.CIFAR10(root='.data/cifar10', train=False, download=True, transform=transform_test)
-
-    return train_loader, test_loader, train_eval_loader, testset
 
 def lisa_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
     path = kagglehub.dataset_download("chandanakuntala/cropped-lisa-traffic-light-dataset")
@@ -389,7 +263,7 @@ def lisa_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
     test_loader = DataLoader(test_dataset, batch_size=test_batch_size, shuffle=False, num_workers=2)
     train_eval_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=False, num_workers=2)
 
-    return train_loader, test_loader, train_eval_loader, 7
+    return train_loader, test_loader, train_eval_loader, test_dataset, 7
 
 
 def bstl_loaders(train_batch_size=256, test_batch_size=64, normalize=False, is_lip=True):
@@ -418,16 +292,16 @@ def bstl_loaders(train_batch_size=256, test_batch_size=64, normalize=False, is_l
                             shuffle=False, pin_memory=True)
     train_eval_loader = DataLoader(train_data, batch_size=train_batch_size,
                              shuffle=False, pin_memory=True)
-    return train_loader, test_loader, train_eval_loader, 4
+    return train_loader, test_loader, train_eval_loader, test_data, 4
 
 if args.dataset == 'lisa':
-    trainloader, testloader, train_eval_loader, num_classes = lisa_loaders(
+    trainloader, testloader, train_eval_loader, num_classes, testset = lisa_loaders(
         train_batch_size=args.batch_size,
         test_batch_size=args.batch_size,
         normalize=args.normalize
     )
 else:
-    trainloader, testloader, train_eval_loader, num_classes = bstl_loaders(
+    trainloader, testloader, train_eval_loader, num_classes, testset = bstl_loaders(
         train_batch_size=args.batch_size,
         test_batch_size=args.batch_size,
         normalize=args.normalize,
