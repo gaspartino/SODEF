@@ -220,6 +220,12 @@ config = SimpleNamespace(
 )
 
 model = getModel(config).to(device)
+
+if args.dataset == 'lisa':
+    model_path = "EXP/lisa_lipkernel_4c1fc_nat.ckpt.ckpt"
+else:
+    model_path = "EXP/bstl_lipkernel_4c1fc_nat.ckpt.ckpt"
+
 model_state = torch.load(f"EXP/lisa_lipkernel_4c1fc.ckpt")
 
 try:
