@@ -33,6 +33,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch-size', default=128, type=int)
     parser.add_argument('--data-dir', default='../cifar-data', type=str)
+    parser.add_argument('--dataset', default='lisa', type=str)
     parser.add_argument('--epsilon', default=8, type=int)
     parser.add_argument('--out-dir', default='train_fgsm_output', type=str, help='Output directory')
     parser.add_argument('--seed', default=0, type=int, help='Random seed')
@@ -106,10 +107,13 @@ def get_mnist_loaders(data_aug=False, batch_size=128, test_batch_size=1000, perc
 
     return train_loader, test_loader, train_eval_loader
 
-
+from torchvision import transforms
+from torchvision.datasets import ImageFolder
+from torch.utils.data import DataLoader
+import torch
 import kagglehub
 
-def lisa_loaders(train_batch_size=256, test_batch_size=64):
+def lisa_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
     path = kagglehub.dataset_download("chandanakuntala/cropped-lisa-traffic-light-dataset")
     
     print("Path to dataset files:", path)
@@ -119,12 +123,15 @@ def lisa_loaders(train_batch_size=256, test_batch_size=64):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    transform = transforms.Compose([
-        transforms.Resize((32, 32)),
-        transforms.ToTensor(),
-        #transforms.Normalize(mean=[0.485, 0.456, 0.406],
-        #                     std=[0.229, 0.224, 0.225])
-    ])
+    transform_list = [transforms.Resize((32, 32)), transforms.ToTensor()]
+
+    if normalize:
+        transform_list.append(
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])
+        )
+
+    transform = transforms.Compose(transform_list)
 
     train_dataset = ImageFolder(train_dir, transform=transform)
     test_dataset = ImageFolder(val_dir, transform=transform)
@@ -135,11 +142,19 @@ def lisa_loaders(train_batch_size=256, test_batch_size=64):
 
     return train_loader, test_loader, train_eval_loader, 7
 
-def bstl_loaders(train_batch_size=256, test_batch_size=64):
-    transform = transforms.Compose([
-        transforms.Resize((32, 64)),
-        transforms.ToTensor(),
-    ])
+
+def bstl_loaders(train_batch_size=256, test_batch_size=64, normalize=False, is_lip=True):
+    dim = 32 if is_lip else 64
+
+    transform_list = [transforms.Resize((32, dim)), transforms.ToTensor()]
+
+    if normalize:
+        transform_list.append(
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])
+        )
+
+    transform = transforms.Compose(transform_list)
     
     data_dir = '/kaggle/input/bstl-dataset'
     train_dir = f"{data_dir}/train"
@@ -199,7 +214,7 @@ config = SimpleNamespace(
     model="Lip4C1F",
     in_channels=3,
     img_size=32,
-    num_classes=7,
+    num_classes=num_classes,
     gamma=1.0,       
     layer="Lip2C1F"          
 )
@@ -223,7 +238,7 @@ net = [lip_cnn_final]
 
 #fcs_temp = fcs(in_features=32*width) #lbdn 
 fcs_temp = fcs(in_features=128)  #lip
-fc_layers = MLP_OUT_BALL()  
+fc_layers = MLP_OUT_BALL(num_classes)  
 for param in fc_layers.parameters():
     param.requires_grad = False
 net = nn.Sequential(*net, fcs_temp, fc_layers).to(device)
@@ -412,9 +427,9 @@ class Flatten(nn.Module):
 
 class MLP_OUT(nn.Module):
 
-    def __init__(self):
+    def __init__(self, num_classes=10):
         super(MLP_OUT, self).__init__()
-        self.fc0 = nn.Linear(fc_dim, 7)
+        self.fc0 = nn.Linear(fc_dim, num_classes)
 
     def forward(self, input_):
         h1 = self.fc0(input_)
@@ -520,7 +535,7 @@ makedirs(odesavefolder)
 odefunc = ODEfunc_mlp(0)
 
 feature_layers = [ODEBlocktemp(odefunc)]
-fc_layers = [MLP_OUT()]
+fc_layers = [MLP_OUT(num_classes)]
 
 for param in fc_layers[0].parameters():
     param.requires_grad = False
@@ -631,7 +646,7 @@ class ODEBlock(nn.Module):
 makedirs(savefolder_fc)
 odefunc = ODEfunc_mlp(0)
 feature_layers = [ODEBlock(odefunc)]
-fc_layers = [MLP_OUT()]
+fc_layers = [MLP_OUT(num_classes)]
 model = nn.Sequential(*feature_layers, *fc_layers).to(device)
 model.load_state_dict(statedic)
 for param in odefunc.parameters():
