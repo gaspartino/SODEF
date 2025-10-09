@@ -350,14 +350,11 @@ import numpy as np
 from torchvision.models import resnet34, ResNet34_Weights
 from torch.utils.data import DataLoader
 from types import SimpleNamespace
-#from model_lbdn import KWL
 from model_lip import *
 
 print('==> Building model..')
 
 if args.is_lip:
-    # ======== BLOCO LIP (mantido exatamente como seu trecho funcional) ========
-
     config = SimpleNamespace(
         model="Lip4C1F",
         in_channels=3,
@@ -410,22 +407,15 @@ if args.is_lip:
     model = nn.Sequential(*net, tempnn_, fcs_temp, *model_dense).to(device)
 
 else:
-    # ======== BLOCO RESNET-34 (caso args.is_lip seja False) ========
-
-    from torchvision.models import resnet34, ResNet34_Weights
-
-    # Carrega o backbone ResNet-34
     backbone = resnet34(weights=ResNet34_Weights.DEFAULT)
-    backbone = nn.Sequential(*list(backbone.children())[:-1])  # remove a camada fc
-    backbone = nn.Sequential(backbone, nn.Flatten()).to(device)  # achata a saída
+    backbone = nn.Sequential(*list(backbone.children())[:-1])
+    backbone = nn.Sequential(backbone, nn.Flatten()).to(device) 
 
-    # Camadas adicionais
-    fcs_temp = fcs(in_features=512)  # saída padrão da ResNet-34 é 512
+    fcs_temp = fcs(in_features=512)  
     fc_layers = MLP_OUT_BALL(num_classes)
 
     model = nn.Sequential(backbone, fcs_temp, fc_layers).to(device)
 
-# ======== Multi-GPU e modo eval (comum a ambos os casos) ========
 
 if torch.cuda.device_count() > 1:
     print(f"Usando {torch.cuda.device_count()} GPUs com DataParallel")
@@ -460,35 +450,32 @@ class mnist_samples(Dataset):
         self.len = leng
         self.iid = iid
     def __len__(self):
-#             return 425
             return self.len
 
     def __getitem__(self, idx):
         x,y = self.dataset[idx+self.len*self.iid]
         return x,y
+        
 test_samples = mnist_samples(testset,32,4)
-# test_loader_samples = DataLoader(test_samples, batch_size=1, shuffle=False, num_workers=2, drop_last=False)
 test_loader_samples = DataLoader(test_samples, batch_size=100, shuffle=False, num_workers=2, drop_last=False)
 
-# Step 4: Evaluate the ART classifier on adversarial test examples
 
 from tqdm import tqdm
 import torchattacks
 
-def accuracy_clean(classifier, dataset_loader):
+def accuracy_clean(classifier, dataset_loader, out_features=10):
     total_correct = 0
     for x, y in dataset_loader:
-#         x = x.to(device)
         predictions = classifier.predict(x)
-        y = one_hot(np.array(y.numpy()), 7)
+        y = one_hot(np.array(y.numpy()), out_features)
         target_class = np.argmax(y, axis=1)
-#         predicted_class = np.argmax(predictions.cpu().detach().numpy(), axis=1)
         predicted_class = np.argmax(predictions, axis=1)
         total_correct += np.sum(predicted_class == target_class)
     return total_correct / len(dataset_loader.dataset)
 
 accuracy_clean = accuracy_clean(classifier, testloader)
 print(f"Accuracy on benign: {round(accuracy_clean * 100,2)}%")
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -518,7 +505,7 @@ def accuracy_AA(model, dataset_loader, eps, num_classes, device):
 
     return accuracy
 
-    def accuracy_FGSM(classifier, dataset_loader, eps):
+def accuracy_FGSM(classifier, dataset_loader, eps):
     attack = torchattacks.FGSM(model, eps=eps)
     total_correct = 0
     total_samples = 0
@@ -564,7 +551,6 @@ def accuracy_MIM(classifier, dataset_loader, eps):
     for x, y in dataset_loader:
         x, y = x.to(device), y.to(device)
 
-        # Gerar amostras adversariais
         x_adv = attack(x, y)
 
         with torch.no_grad():
