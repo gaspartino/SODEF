@@ -18,7 +18,7 @@ import torchvision
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from torchvision.datasets import MNIST, CIFAR10, ImageFolder
-from torchvision.models import resnet34, ResNet34_Weights
+from torchvision.models import resnet18, ResNet18_Weights
 
 import geotorch
 import kagglehub
