@@ -244,7 +244,7 @@ if args.is_lip:
     net = nn.Sequential(lip_cnn_final, fcs_temp, fc_layers).to(device)
 
 else:
-    net = ResNet18(weights=ResNet18_Weights.DEFAULT)
+    net = resnet18(weights=ResNet18_Weights.DEFAULT)
     net = net.to(device)
     
     net = nn.Sequential(*list(net.children())[0:-1])
