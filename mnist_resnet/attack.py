@@ -1,28 +1,31 @@
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-import numpy as np
 import os
 import argparse
 import logging
 import time
+import math
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
-import torchvision.datasets as datasets
-import torchvision.transforms as transforms
-import geotorch
-import math
-import torchvision
-from torch.nn import functional as F
+import torch.optim as optim
+import torch.nn.functional as F
 from torch.nn.parameter import Parameter
+from torch.utils.data import Dataset, DataLoader
+from types import SimpleNamespace
+
+import torchvision
+import torchvision.transforms as transforms
+from torchvision.datasets import MNIST, CIFAR10, ImageFolder
+from torchvision.models import resnet18, ResNet18_Weights
+
+import kagglehub
+import geotorch
+
 from art.attacks.evasion import FastGradientMethod, ProjectedGradientDescent, CarliniL2Method
 from art.estimators.classification import PyTorchClassifier
 from art.utils import load_mnist
+
 from models import *
-from torchvision.datasets import MNIST, CIFAR10, ImageFolder
-import os
+from model_lip import *
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -121,7 +124,6 @@ class newLinear(nn.Module):
         self.in_features = in_features
         self.out_features = out_features
         self.weight = Parameter(torch.Tensor(in_features,out_features))
-#         self.weight = self.weighttemp.T
         if bias:
             self.bias = Parameter(torch.Tensor(out_features))
         else:
@@ -169,7 +171,7 @@ class ORTHFC_NOBAIS(nn.Module):
 class MLP_OUT_ORT(nn.Module):
     def __init__(self, out_features=10):
         super(MLP_OUT_ORT, self).__init__()
-        self.fc0 = ORTHFC(fc_dim, out_features, False)#nn.Linear(fc_dim, 4)
+        self.fc0 = ORTHFC(fc_dim, out_features, False)
     def forward(self, input_):
         h1 = self.fc0(input_)
         return h1
@@ -195,8 +197,6 @@ class MLP_OUT_BALL(nn.Module):
 def one_hot(x, K):
     return np.array(x[:, None] == np.arange(K)[None, :], dtype=int)
 
-
-
 def accuracy(model, dataset_loader):
     total_correct = 0
     for x, y in dataset_loader:
@@ -216,10 +216,9 @@ def makedirs(dirname):
         os.makedirs(dirname)
 
     
-device = 'cuda' #if torch.cuda.is_available() else 'cpu'
-# print(device)
-best_acc = 0  # best test accuracy
-start_epoch = 0  # start from epoch 0 or last checkpoint epoch
+device = 'cuda' 
+best_acc = 0
+start_epoch = 0
 
 # Data
 print('==> Preparing data..')
@@ -227,7 +226,7 @@ print('==> Preparing data..')
 def bstl_loaders(train_batch_size=256, test_batch_size=64, normalize=False, is_lip=True):
     dim = 32 if is_lip else 64
 
-    transform_list = [transforms.Resize((32, dim)), transforms.ToTensor()]
+    transform_list = [transforms.Resize((dim, 32)), transforms.ToTensor()]
 
     if normalize:
         transform_list.append(
@@ -342,18 +341,6 @@ class LipConvExtractor(nn.Module):
 
 print('==> Building model..')
 
-import kagglehub
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import numpy as np
-from torchvision.models import resnet34, ResNet34_Weights
-from torch.utils.data import DataLoader
-from types import SimpleNamespace
-from model_lip import *
-
-print('==> Building model..')
-
 if args.is_lip:
     config = SimpleNamespace(
         model="Lip4C1F",
@@ -407,14 +394,38 @@ if args.is_lip:
     model = nn.Sequential(*net, tempnn_, fcs_temp, *model_dense).to(device)
 
 else:
-    backbone = resnet34(weights=ResNet34_Weights.DEFAULT)
-    backbone = nn.Sequential(*list(backbone.children())[:-1])
-    backbone = nn.Sequential(backbone, nn.Flatten()).to(device) 
-
-    fcs_temp = fcs(in_features=512)  
-    fc_layers = MLP_OUT_BALL(num_classes)
-
-    model = nn.Sequential(backbone, fcs_temp, fc_layers).to(device)
+    net = resnet18(weights=ResNet18_Weights.DEFAULT)
+    
+    net = net.to(device)
+    
+    net = nn.Sequential(*list(net.children())[0:-1])
+    
+    fcs_temp = fcs()
+    
+    fc_layersa = MLP_OUT_BALL(num_classes)
+    
+    model_fea = nn.Sequential(*net, fcs_temp, fc_layersa).to(device)
+    saved_temp = torch.load(folder_savemodel+'/ckpt.pth')
+    statedic_temp = saved_temp['net']
+    model_fea.load_state_dict(statedic_temp)
+    
+    
+    odefunc = ODEfunc_mlp(0)
+    feature_layers = [ODEBlock(odefunc)] 
+    fc_layers = [MLP_OUT_final(num_classes)]
+    model_dense = nn.Sequential( *feature_layers, *fc_layers).to(device)
+    statedic = saved['state_dict']
+    model_dense.load_state_dict(statedic)
+    
+    
+    class tempnn(nn.Module):
+        def __init__(self):
+            super(tempnn, self).__init__()
+        def forward(self, input_):
+            h1 = input_[...,0,0]
+            return h1
+    tempnn_ = tempnn()
+    model = nn.Sequential(*net, tempnn_,fcs_temp,  *model_dense).to(device)
 
 
 if torch.cuda.device_count() > 1:
