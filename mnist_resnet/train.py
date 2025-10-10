@@ -238,8 +238,8 @@ if args.is_lip:
 
     fcs_temp = fcs(in_features=128)  
     fc_layers = MLP_OUT_BALL(num_classes)
-    for param in fc_layers.parameters():
-        param.requires_grad = False
+    #for param in fc_layers.parameters():
+    #    param.requires_grad = False
 
     net = nn.Sequential(lip_cnn_final, fcs_temp, fc_layers).to(device)
 
@@ -251,8 +251,8 @@ else:
     
     fcs_temp = fcs()
     fc_layers = MLP_OUT_BALL(num_classes)
-    for param in fc_layers.parameters():
-        param.requires_grad = False
+    #for param in fc_layers.parameters():
+    #    param.requires_grad = False
         
     net = nn.Sequential(*net, fcs_temp, fc_layers).to(device)
 
