@@ -1,25 +1,32 @@
-from torch import nn
+import os
+import math
+import random
+import argparse
+import logging
+import numpy as np
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
-import torchvision.datasets as datasets
+from torch.nn.parameter import Parameter
+from torch.utils.data import Dataset, DataLoader
+from types import SimpleNamespace
+
 import torchvision
 import torchvision.transforms as transforms
-import torch.backends.cudnn as cudnn
-import logging
-from torch.nn.parameter import Parameter
-import geotorch
-import math
-import random
-import numpy as np
-import os
-import argparse
-from torchdiffeq import odeint_adjoint as odeint
-from torch.utils.data import Dataset, DataLoader
-from model import *
+import torchvision.datasets as datasets
 from torchvision.datasets import MNIST, CIFAR10, ImageFolder
+from torchvision.models import resnet34, ResNet34_Weights
+
+import geotorch
+import kagglehub
+from torchdiffeq import odeint_adjoint as odeint
+
+from model import *
+from model_lip import *
+
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
@@ -56,18 +63,13 @@ def seed_torch(seed=0):
     
 seed_torch()
 
-
-
 def makedirs(dirname):
     if not os.path.exists(dirname):
         os.makedirs(dirname)
 
-
 device = 'cuda' 
 best_acc = 0 
-start_epoch = 0  
-
-    
+start_epoch = 0   
 
 def inf_generator(iterable):
     iterator = iterable.__iter__()
@@ -109,12 +111,6 @@ def get_mnist_loaders(data_aug=False, batch_size=128, test_batch_size=1000, perc
 
     return train_loader, test_loader, train_eval_loader
 
-from torchvision import transforms
-from torchvision.datasets import ImageFolder
-from torch.utils.data import DataLoader
-import torch
-import kagglehub
-
 def lisa_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
     path = kagglehub.dataset_download("chandanakuntala/cropped-lisa-traffic-light-dataset")
     
@@ -148,7 +144,7 @@ def lisa_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
 def bstl_loaders(train_batch_size=256, test_batch_size=64, normalize=False, is_lip=True):
     dim = 32 if is_lip else 64
 
-    transform_list = [transforms.Resize((32, dim)), transforms.ToTensor()]
+    transform_list = [transforms.Resize((dim, 32)), transforms.ToTensor()]
 
     if normalize:
         transform_list.append(
@@ -211,16 +207,6 @@ class LipConvExtractor(nn.Module):
         return x
 
 print('==> Building model..')
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import numpy as np
-from torchvision.models import resnet34, ResNet34_Weights
-from torch.utils.data import DataLoader
-from types import SimpleNamespace
-from model_lip import *
-
-print('==> Building model..')
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -258,20 +244,19 @@ if args.is_lip:
     net = nn.Sequential(lip_cnn_final, fcs_temp, fc_layers).to(device)
 
 else:
-    net = resnet34(weights=ResNet34_Weights.DEFAULT)
+    net = ResNet18(weights=ResNet18_Weights.DEFAULT)
     net = net.to(device)
-
-    net = nn.Sequential(*list(net.children())[:-1])
-
-    fcs_temp = fcs()  
+    
+    net = nn.Sequential(*list(net.children())[0:-1])
+    
+    fcs_temp = fcs()
     fc_layers = MLP_OUT_BALL(num_classes)
     for param in fc_layers.parameters():
         param.requires_grad = False
-
-    net = nn.Sequential(net, fcs_temp, fc_layers).to(device)
+        
+    net = nn.Sequential(*net, fcs_temp, fc_layers).to(device)
 
 print(net)
-#cure = CURE_Regularizer(net, device, lambda_=4.0)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(net.parameters(), lr=0.0001, eps=1e-4, amsgrad=True)
@@ -285,10 +270,10 @@ def save_feature(model, dataset_loader, save_path):
         x = x.to(device)
         y_ = y.numpy()
 
-        for l in modulelist[:-2]:  # Extrator de características
+        for l in modulelist[:-2]:
             x = l(x)
 
-        x = net[-2](x[..., 0, 0])  # fcs_temp
+        x = net[-2](x[..., 0, 0])
         x_ = x.cpu().detach().numpy()
 
         x_save.append(x_)
@@ -307,16 +292,14 @@ def train(epoch, trainloader):
         optimizer.zero_grad()
 
         x = inputs
-        for l in modulelist[:-2]:  # Extrator de características
+        for l in modulelist[:-2]:
             x = l(x)
 
-        x = net[-2](x[..., 0, 0])  # fcs_temp
-        x = net[-1](x)  # Camada final (7 classes)
+        x = net[-2](x[..., 0, 0])
+        x = net[-1](x)
         outputs = x
 
         loss = criterion(outputs, targets)
-        #reg, grad_norm = cure.compute(inputs, targets)
-        #loss = loss + reg
         loss.backward()
         optimizer.step()
 
@@ -339,11 +322,11 @@ def test(epoch, testloader, save_model_path, train_eval_loader):
             inputs, targets = inputs.to(device), targets.to(device)
 
             x = inputs
-            for l in modulelist[:-2]:  # Extrator de características
+            for l in modulelist[:-2]:
                 x = l(x)
 
-            x = net[-2](x[..., 0, 0])  # fcs_temp
-            x = net[-1](x)  # Camada final (7 classes)
+            x = net[-2](x[..., 0, 0])
+            x = net[-1](x)
             outputs = x
 
             loss = criterion(outputs, targets)
@@ -367,7 +350,6 @@ def test(epoch, testloader, save_model_path, train_eval_loader):
 
         save_feature(net, train_eval_loader, train_savepath)
         save_feature(net, testloader, test_savepath)
-
 
 ############################################### Phase 1 ################################################
 makedirs(folder_savemodel)
@@ -408,7 +390,7 @@ class ConcatFC(nn.Module):
     def forward(self, t, x):
         return self._layer(x)
 
-class ODEfunc_mlp(nn.Module):  # dense_resnet_relu1,2,7
+class ODEfunc_mlp(nn.Module): 
 
     def __init__(self, dim):
         super(ODEfunc_mlp, self).__init__()
@@ -484,7 +466,6 @@ def count_parameters(model):
 
 
 def df_dz_regularizer(f, z):
-    #     print("+++++++++++")
     regu_diag = 0.
     regu_offdiag = 0.0
     for ii in np.random.choice(z.shape[0], min(numm, z.shape[0]), replace=False):
@@ -496,12 +477,10 @@ def df_dz_regularizer(f, z):
 
         tempdiag = torch.diagonal(batchijacobian, 0)
         regu_diag += torch.exp(exponent * (tempdiag + trans))
-        #         print(regu_diag)
 
         offdiat = torch.sum(
             torch.abs(batchijacobian) * ((-1 * torch.eye(batchijacobian.shape[0]).to(device) + 0.5) * 2), dim=0)
         off_diagtemp = torch.exp(exponent_off * (offdiat + transoffdig))
-        #         off_diagtemp = torch.exp(exponent*(torch.sum(torch.abs(batchijacobian)*((-1*torch.eye(batchijacobian.shape[0]).to(device)+0.5)*2), dim=0)+transoffdig))
         regu_offdiag += off_diagtemp
 
     return regu_diag / numm, regu_offdiag / numm
@@ -607,7 +586,7 @@ for itr in range(10 * batches_per_epoch):
     for l in modulelist[1:]:
         x = l(x)
     logits = x
-    y00 = y0  # .clone().detach().requires_grad_(True)
+    y00 = y0  
 
     regu1, regu2 = df_dz_regularizer(odefunc, y00)
     regu1 = regu1.mean()
@@ -615,7 +594,6 @@ for itr in range(10 * batches_per_epoch):
     regu3 = f_regularizer(odefunc, y00)
     regu3 = regu3.mean()
     loss = weight_f * regu3 + weight_diag * regu1 + weight_offdiag * regu2
-    #         loss = weight_f*regu3
 
     if itr % 100 == 1:
         torch.save({'state_dict': model.state_dict(), 'args': args},
