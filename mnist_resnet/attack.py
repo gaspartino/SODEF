@@ -1,135 +1,65 @@
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-import numpy as np
+%%writefile /kaggle/working/SODEF/mnist_resnet/attack.py
+
 import os
 import argparse
 import logging
 import time
+import math
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
-import torchvision.datasets as datasets
-import torchvision.transforms as transforms
-import geotorch
-import math
+import torch.optim as optim
+import torch.nn.functional as F
+import torchattacks
 import torchvision
-from torch.nn import functional as F
-from torch.nn.parameter import Parameter
-from art.attacks.evasion import FastGradientMethod, ProjectedGradientDescent, CarliniL2Method
-from art.estimators.classification import PyTorchClassifier
-from art.utils import load_mnist
+import torchvision.transforms as transforms
+import kagglehub
+import geotorch
+
 from models import *
+from art.utils import load_mnist
+from types import SimpleNamespace
+from torch.nn.parameter import Parameter
+from torch.utils.data import Dataset, DataLoader
+from sklearn.metrics import precision_score, recall_score, f1_score
+from torchvision.models import resnet18, ResNet18_Weights
+from torchvision.datasets import MNIST, CIFAR10, ImageFolder
+from art.estimators.classification import PyTorchClassifier
+from art.attacks.evasion import FastGradientMethod, ProjectedGradientDescent, CarliniL2Method
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+np.set_printoptions(threshold=np.inf, suppress=True)
 
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID" 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-torch.pi = torch.acos(torch.zeros(1)).item() * 2 # which is 3.1415927410125732
-device = torch.device('cuda:0')
-np.set_printoptions(threshold=np.inf)
-np.set_printoptions(suppress=True)
-endtime = 5
-timescale = 1
-layernum = 0
 fc_dim = 64
+endtime = 5
 
-# folder_savemodel = './EXP/MNIST_resnet0'
 folder_savemodel = './EXP/MNIST_resnet_final'
-
-
 folder = './EXP/resnetfct5_15/model.pth'
-# folder = './EXP/resnetfc20_relu_final/model.pth'
-
 
 act = torch.sin 
-# act2 = torch.nn.functional.relu
-saved = torch.load(folder)
+
+saved = torch.load(folder, weights_only=False)
 print(folder)
 
 statedic = saved['state_dict']
 args = saved['args']
 args.tol = 1e-5
-
+print(args)
 f_coeffi = -1
 
 from torchdiffeq import odeint_adjoint as odeint
-# Step 0: Define the neural network model, return logits instead of activation in forward method
+
 class ConcatFC(nn.Module):
 
     def __init__(self, dim_in, dim_out):
         super(ConcatFC, self).__init__()
         self._layer = nn.Linear(dim_in, dim_out)
-#
+        
     def forward(self, t, x):
         return self._layer(x)
-# class ODEfunc_mlp(nn.Module):
 
-#     def __init__(self, dim):
-#         super(ODEfunc_mlp, self).__init__()
-#         self.fc1 = ConcatFC(fc_dim, 2*fc_dim)
-#         self.act1 = act2
-#         self.fc2 = ConcatFC(2*fc_dim, 4*fc_dim)
-#         self.act2 = act2
-#         self.fc3 = ConcatFC(4*fc_dim, fc_dim)
-#         self.act3 = act2
-#         self.nfe = 0
-
-#     def forward(self, t, x):
-#         self.nfe += 1
-#         out = f_coeffi*self.fc1(t, x)
-#         out = self.act1(out)
-#         out = f_coeffi*self.fc2(t, out)
-#         out = self.act2(out)
-#         out = f_coeffi*self.fc3(t, out)
-#         out = self.act3(out)
-#         return out 
-
-# class ODEfunc_mlp(nn.Module):
-
-#     def __init__(self, dim):
-#         super(ODEfunc_mlp, self).__init__()
-#         self.fc1 = ConcatFC(fc_dim, 512)
-#         self.act1 = act
-#         self.fc2 = ConcatFC(512, 512)
-#         self.act2 = act
-#         self.fc3 = ConcatFC(512, fc_dim)
-#         self.act3 = act
-#         self.nfe = 0
-
-#     def forward(self, t, x):
-#         self.nfe += 1
-#         out = f_coeffi*self.fc1(t, x)
-#         out = self.act1(out)
-#         out = f_coeffi*self.fc2(t, out)
-#         out = self.act2(out)
-#         out = f_coeffi*self.fc3(t, out)
-#         out = self.act3(out)
-#         return out
-# class ODEfunc_mlp(nn.Module): #dense_resnet_relu0
-
-#     def __init__(self, dim):
-#         super(ODEfunc_mlp, self).__init__()
-#         self.fc1 = ConcatFC(fc_dim, 2*fc_dim)
-#         self.act1 = act2
-#         self.fc2 = ConcatFC(2*fc_dim, 4*fc_dim)
-#         self.act2 = act2
-#         self.fc3 = ConcatFC(4*fc_dim, fc_dim)
-#         self.act3 = act
-#         self.nfe = 0
-
-#     def forward(self, t, x):
-#         self.nfe += 1
-#         out = f_coeffi*self.fc1(t, x)
-# #         out = self.act1(out)
-#         out = f_coeffi*self.fc2(t, out)
-# #         out = self.act2(out)
-#         out = f_coeffi*self.fc3(t, out)
-#         out = self.act3(out)
-#         return out 
-    
-    
-class ODEfunc_mlp(nn.Module): #dense_resnet_relu1,2,7
+class ODEfunc_mlp(nn.Module):
 
     def __init__(self, dim):
         super(ODEfunc_mlp, self).__init__()
@@ -142,119 +72,7 @@ class ODEfunc_mlp(nn.Module): #dense_resnet_relu1,2,7
         out = f_coeffi*self.fc1(t, x)
         out = self.act1(out)
         return out 
-
-
-# class ODEfunc_mlp(nn.Module): #dense_resnet_relu3
-
-#     def __init__(self, dim):
-#         super(ODEfunc_mlp, self).__init__()
-#         self.fc1 = ConcatFC(fc_dim, 8*fc_dim)
-#         self.act1 = act
-#         self.fc2 = ConcatFC(8*fc_dim, fc_dim)
-#         self.nfe = 0
-
-#     def forward(self, t, x):
-#         self.nfe += 1
-#         out = f_coeffi*self.fc1(t, x)
-#         out = self.act1(out)
-#         out = self.fc2(t, out)
-#         return out 
-# class ODEfunc_mlp(nn.Module): #dense_resnet_relu4,6
-
-#     def __init__(self, dim):
-#         super(ODEfunc_mlp, self).__init__()
-#         self.fc1 = ConcatFC(fc_dim, 16*fc_dim)
-#         self.act1 = act
-#         self.fc2 = ConcatFC(16*fc_dim, fc_dim)
-#         self.nfe = 0
-
-#     def forward(self, t, x):
-#         self.nfe += 1
-#         out = f_coeffi*self.fc1(t, x)
-#         out = self.act1(out)
-#         out = self.fc2(t, out)
-#         return out 
-# class ODEfunc_mlp(nn.Module): #dense_resnet_relu5
-
-#     def __init__(self, dim):
-#         super(ODEfunc_mlp, self).__init__()
-#         self.fc1 = ConcatFC(fc_dim, 2048)
-#         self.act1 = act
-#         self.fc2 = ConcatFC(2048, fc_dim)
-#         self.nfe = 0
-
-#     def forward(self, t, x):
-#         self.nfe += 1
-#         out = f_coeffi*self.fc1(t, x)
-#         out = self.act1(out)
-#         out = self.fc2(t, out)
-#         return out    
-
-
-# class ODEfunc_mlp(nn.Module): #8
-
-#     def __init__(self, dim):
-#         super(ODEfunc_mlp, self).__init__()
-#         self.fc1 = ConcatFC(fc_dim, 32)
-#         self.act1 = act
-#         self.fc2 = ConcatFC(32, fc_dim)
-#         self.nfe = 0
-
-#     def forward(self, t, x):
-#         self.nfe += 1
-#         out = f_coeffi*self.fc1(t, x)
-#         out = self.act1(out)
-#         out = self.fc2(t, out)
-#         return out   
-
-# class ODEfunc_mlp(nn.Module): #9
-
-#     def __init__(self, dim):
-#         super(ODEfunc_mlp, self).__init__()
-#         self.fc1 = ConcatFC(fc_dim, 8)
-#         self.act1 = act
-#         self.fc2 = ConcatFC(8, fc_dim)
-#         self.nfe = 0
-
-#     def forward(self, t, x):
-#         self.nfe += 1
-#         out = f_coeffi*self.fc1(t, x)
-#         out = self.act1(out)
-#         out = self.fc2(t, out)
-#         return out    
-
-# class ODEfunc_mlp(nn.Module): #9,10
-
-#     def __init__(self, dim):
-#         super(ODEfunc_mlp, self).__init__()
-#         self.fc1 = ConcatFC(fc_dim, 8)
-#         self.act1 = act
-#         self.fc2 = ConcatFC(8, fc_dim)
-#         self.nfe = 0
-
-#     def forward(self, t, x):
-#         self.nfe += 1
-#         out = f_coeffi*self.fc1(t, x)
-#         out = self.act1(out)
-#         out = self.fc2(t, out)
-#         return out        
-# class ODEfunc_mlp(nn.Module): #dense_resnet_relu11
-
-#     def __init__(self, dim):
-#         super(ODEfunc_mlp, self).__init__()
-#         self.fc1 = ConcatFC(fc_dim, 4*fc_dim)
-#         self.act1 = torch.tanh
-#         self.fc2 = ConcatFC(4*fc_dim, fc_dim)
-#         self.act2 = torch.sin 
-#         self.nfe = 0
-
-#     def forward(self, t, x):
-#         self.nfe += 1
-#         out = self.fc1(t, x)
-#         out = self.act1(out)
-#         out = f_coeffi*self.fc2(t, out)
-#         out = self.act2(out)
-#         return out      
+     
 class ODEBlock(nn.Module):
 
     def __init__(self, odefunc):
@@ -286,8 +104,6 @@ class Flatten(nn.Module):
 
 
 class RunningAverageMeter(object):
-    """Computes and stores the average and current value"""
-
     def __init__(self, momentum=0.99):
         self.momentum = momentum
         self.reset()
@@ -303,23 +119,12 @@ class RunningAverageMeter(object):
             self.avg = self.avg * self.momentum + val * (1 - self.momentum)
         self.val = val
 
-# class MLP_IN(nn.Module):
-
-#     def __init__(self):
-#         super(MLP_IN, self).__init__()
-#         self.fc0 = nn.Linear(784, fc_dim)
-
-#     def forward(self, input_):
-#         input_ =  input_.view(-1,784)
-#         h1 = F.relu(self.fc0(input_))
-#         return h1
 class newLinear(nn.Module):
     def __init__(self, in_features, out_features, bias=True):
         super(newLinear, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.weight = Parameter(torch.Tensor(in_features,out_features))
-#         self.weight = self.weighttemp.T
         if bias:
             self.bias = Parameter(torch.Tensor(out_features))
         else:
@@ -365,29 +170,26 @@ class ORTHFC_NOBAIS(nn.Module):
     def forward(self, x):
         return self.linear(x)
 class MLP_OUT_ORT(nn.Module):
-    def __init__(self):
+    def __init__(self, out_features=10):
         super(MLP_OUT_ORT, self).__init__()
-        self.fc0 = ORTHFC(fc_dim, 10, False)#nn.Linear(fc_dim, 10)
+        self.fc0 = ORTHFC(fc_dim, out_features, False)
     def forward(self, input_):
         h1 = self.fc0(input_)
         return h1
 
 class MLP_OUT_final(nn.Module):
 
-    def __init__(self):
+    def __init__(self, out_features=10):
         super(MLP_OUT_final, self).__init__()
-        self.fc0 = nn.Linear(fc_dim, 10)
+        self.fc0 = nn.Linear(fc_dim, out_features)
     def forward(self, input_):
         h1 = self.fc0(input_)
         return h1
-    
+
 class MLP_OUT_BALL(nn.Module):
-
-    def __init__(self):
+    def __init__(self, out_features=10):
         super(MLP_OUT_BALL, self).__init__()
-
-        self.fc0 = nn.Linear(fc_dim, 10, bias=False)
-        self.fc0.weight.data = matrix_temp
+        self.fc0 = nn.Linear(64, out_features, bias=False)
     def forward(self, input_):
         h1 = self.fc0(input_)
         return h1  
@@ -396,83 +198,134 @@ class MLP_OUT_BALL(nn.Module):
 def one_hot(x, K):
     return np.array(x[:, None] == np.arange(K)[None, :], dtype=int)
 
-
 def accuracy(model, dataset_loader):
     total_correct = 0
     for x, y in dataset_loader:
         x = x.to(device)
-        y = one_hot(np.array(y.numpy()), 10)
+        y = one_hot(np.array(y.numpy()), 4)
 
         target_class = np.argmax(y, axis=1)
         predicted_class = np.argmax(model(x).cpu().detach().numpy(), axis=1)
         total_correct += np.sum(predicted_class == target_class)
     return total_correct / len(dataset_loader.dataset)
 
-
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
-
 
 def makedirs(dirname):
     if not os.path.exists(dirname):
         os.makedirs(dirname)
 
     
-device = 'cuda' #if torch.cuda.is_available() else 'cpu'
-# print(device)
-best_acc = 0  # best test accuracy
-start_epoch = 0  # start from epoch 0 or last checkpoint epoch
-fc_max = './EXP/fc_maxrowdistance_64_10/ckpt.pth'
-saved_temp = torch.load(fc_max,map_location=torch.device('cpu'))
-matrix_temp = saved_temp['matrix']
-print(matrix_temp.shape)
-
+device = 'cuda' 
+best_acc = 0
+start_epoch = 0
 
 # Data
 print('==> Preparing data..')
-def get_mnist_loaders(data_aug=False, batch_size=128, test_batch_size=1000, perc=1.0):
-    if data_aug:
-        transform_train = transforms.Compose([
-            transforms.RandomCrop(28, padding=4),
-            transforms.ToTensor(),
-        ])
-    else:
-        transform_train = transforms.Compose([
-            transforms.ToTensor(),
-        ])
 
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-    ])
+def bstl_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
+    transform_list = [transforms.Resize((64, 32)), transforms.ToTensor()]
 
-    train_loader = DataLoader(
-        datasets.MNIST(root='.data/mnist', train=True, download=True, transform=transform_train), batch_size=batch_size,
-        shuffle=True, num_workers=2, drop_last=True
+    if normalize:
+        transform_list.append(
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])
+        )
+
+    transform = transforms.Compose(transform_list)
+    
+    data_dir = '/kaggle/input/bstl-dataset'
+    train_dir = f"{data_dir}/train"
+    test_dir = f"{data_dir}/test"
+
+    train_data = ImageFolder(root=train_dir, transform=transform)
+    test_data = ImageFolder(root=test_dir, transform=transform)
+
+    train_loader = DataLoader(train_data, batch_size=train_batch_size,
+                             shuffle=True, pin_memory=True)
+    test_loader = DataLoader(test_data, batch_size=test_batch_size,
+                            shuffle=False, pin_memory=True)
+    train_eval_loader = DataLoader(train_data, batch_size=train_batch_size,
+                             shuffle=False, pin_memory=True)
+    return train_loader, test_loader, train_eval_loader, test_data, 4
+
+def lisa_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
+    path = kagglehub.dataset_download("chandanakuntala/cropped-lisa-traffic-light-dataset")
+    
+    print("Path to dataset files:", path)
+
+    train_dir = f"{path}/cropped_lisa_1/train_1"
+    val_dir = f"{path}/cropped_lisa_1/val_1"
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    transform_list = [transforms.Resize((32, 32)), transforms.ToTensor()]
+
+    if normalize:
+        transform_list.append(
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])
+        )
+
+    transform = transforms.Compose(transform_list)
+
+    train_dataset = ImageFolder(train_dir, transform=transform)
+    test_dataset = ImageFolder(val_dir, transform=transform)
+
+    train_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=True, num_workers=2)
+    test_loader = DataLoader(test_dataset, batch_size=test_batch_size, shuffle=False, num_workers=2)
+    train_eval_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=False, num_workers=2)
+
+    return train_loader, test_loader, train_eval_loader, test_dataset, 7
+
+def cifar10_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
+    transform_list = [transforms.Resize((32, 32)), transforms.ToTensor()]
+
+    if normalize:
+        transform_list.append(
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])
+        )
+
+    transform = transforms.Compose(transform_list)
+    
+    train_loader = DataLoader(CIFAR10('data', train=True, download=True, transform=transform),
+                             batch_size=train_batch_size, shuffle=True, pin_memory=True)
+    train_eval_loader = DataLoader(CIFAR10('data', train=True, download=True, transform=transform),
+                            batch_size=train_batch_size, shuffle=False, pin_memory=True)
+    test_loader = DataLoader(CIFAR10('data', train=False, download=True, transform=transform),
+                            batch_size=test_batch_size, shuffle=False, pin_memory=True)
+
+    test_dataset = CIFAR10('data', train=False, download=True, transform=transform)
+    
+    return train_loader, test_loader, train_eval_loader, test_dataset, 10
+
+if args.dataset == 'lisa':
+    trainloader, testloader, train_eval_loader, testset, num_classes = lisa_loaders(
+        train_batch_size=args.batch_size,
+        test_batch_size=args.batch_size,
+        normalize=args.normalize
     )
-
-    train_eval_loader = DataLoader(
-        datasets.MNIST(root='.data/mnist', train=True, download=True, transform=transform_test),
-        batch_size=batch_size, shuffle=False, num_workers=2, drop_last=True
+elif args.dataset == 'cifar10':
+    trainloader, testloader, train_eval_loader, testset, num_classes = cifar10_loaders(
+        train_batch_size=args.batch_size,
+        test_batch_size=args.batch_size,
+        normalize=args.normalize
     )
-
-    test_loader = DataLoader(
-        datasets.MNIST(root='.data/mnist', train=False, download=True, transform=transform_test),
-        batch_size=batch_size, shuffle=False, num_workers=2, drop_last=True
+else:
+    trainloader, testloader, train_eval_loader, testset, num_classes = bstl_loaders(
+        train_batch_size=args.batch_size,
+        test_batch_size=1024,
+        normalize=args.normalize
     )
-    testset = datasets.MNIST(root='.data/mnist', train=False, download=True, transform=transform_test)
-    return train_loader, test_loader, train_eval_loader, testset
-
-trainloader, testloader, train_eval_loader, testset = get_mnist_loaders(
-    False, 128, 1000
-)
-
 
 class fcs(nn.Module):
 
     def __init__(self,  in_features=512):
         super(fcs, self).__init__()
         self.dropout = 0.1
-        self.merge_net = nn.Sequential(nn.Linear(in_features=512,
+        self.merge_net = nn.Sequential(nn.Linear(in_features=in_features,
                                                  out_features=2048),
 #                                        nn.ReLU(),
                                        nn.Tanh(),
@@ -483,39 +336,32 @@ class fcs(nn.Module):
 #                                        nn.Sigmoid(),
                                        )
 
-        
     def forward(self, inputs):
         output = self.merge_net(inputs)
         return output
 
-
 print('==> Building model..')
-net = ResNet18()
-net.conv1 = nn.Conv2d(1, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+
+
+net = resnet18(weights=None)
 
 net = net.to(device)
 
-
-# print(net)
 net = nn.Sequential(*list(net.children())[0:-1])
 
-#     print(model)
 fcs_temp = fcs()
 
-# fc_layersa = nn.Linear(fc_dim, 10,  bias=True)
-# fc_layersa = MLP_OUT_ORT()
-fc_layersa = MLP_OUT_BALL()
+fc_layersa = MLP_OUT_BALL(num_classes)
 
 model_fea = nn.Sequential(*net, fcs_temp, fc_layersa).to(device)
 saved_temp = torch.load(folder_savemodel+'/ckpt.pth')
-# saved_temp = torch.load(folder_savemodel+'/ckpt-Copy1.pth')
 statedic_temp = saved_temp['net']
 model_fea.load_state_dict(statedic_temp)
-    
-    
+
+
 odefunc = ODEfunc_mlp(0)
 feature_layers = [ODEBlock(odefunc)] 
-fc_layers = [MLP_OUT_final()]
+fc_layers = [MLP_OUT_final(num_classes)]
 model_dense = nn.Sequential( *feature_layers, *fc_layers).to(device)
 statedic = saved['state_dict']
 model_dense.load_state_dict(statedic)
@@ -529,107 +375,28 @@ class tempnn(nn.Module):
         return h1
 tempnn_ = tempnn()
 model = nn.Sequential(*net, tempnn_,fcs_temp,  *model_dense).to(device)
-# model = nn.Sequential(*net, tempnn_,fcs_temp,  fc_layersa).to(device)
+
+
+if torch.cuda.device_count() > 1:
+    print(f"Usando {torch.cuda.device_count()} GPUs com DataParallel")
+    model = nn.DataParallel(model)
 
 model.eval()
 print(model)
 
-# Step 2a: Define the loss function and the optimizer
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.01)
-
-
 
 classifier = PyTorchClassifier(
     model=model,
     clip_values=(0, 1),
     loss=criterion,
     optimizer=optimizer,
-    input_shape=(1, 28, 28),
-    nb_classes=10,
+    input_shape=(3, 32, 32),
+    nb_classes=num_classes,
     device_type="gpu"
 )
 
-
-
-def accuracy_PGD(classifier, dataset_loader):
-    attack = ProjectedGradientDescent(classifier, eps=0.3, max_iter=20)
-    total_correct = 0
-    for x, y in dataset_loader:
-#         x = x.to(device)
-        x = attack.generate(x=x)
-        predictions = classifier.predict(x)
-        y = one_hot(np.array(y.numpy()), 10)
-        target_class = np.argmax(y, axis=1)
-        predicted_class = np.argmax(predictions, axis=1)
-        total_correct += np.sum(predicted_class == target_class)
-    return total_correct / len(dataset_loader.dataset)
-
-def accuracy_clean(classifier, dataset_loader):
-    total_correct = 0
-    for x, y in dataset_loader:
-#         x = x.to(device)
-        predictions = classifier.predict(x)
-        y = one_hot(np.array(y.numpy()), 10)
-        target_class = np.argmax(y, axis=1)
-#         predicted_class = np.argmax(predictions.cpu().detach().numpy(), axis=1)
-        predicted_class = np.argmax(predictions, axis=1)
-        total_correct += np.sum(predicted_class == target_class)
-    return total_correct / len(dataset_loader.dataset)
-
-def accuracy_CW(classifier, dataset_loader):
-    attack = CarliniL2Method(classifier, confidence=1, max_iter=100)
-    total_correct = 0
-    for x, y in dataset_loader:
-#         x = x.to(device)
-        x = attack.generate(x=x)
-        predictions = classifier.predict(x)
-        y = one_hot(np.array(y.numpy()), 10)
-        target_class = np.argmax(y, axis=1)
-        predicted_class = np.argmax(predictions, axis=1)
-        total_correct += np.sum(predicted_class == target_class)
-    return total_correct / len(dataset_loader.dataset)
-
-def accuracy_FGSM(classifier, dataset_loader):
-    attack = FastGradientMethod(estimator=classifier, eps=0.3)
-    total_correct = 0
-    for x, y in dataset_loader:
-#         x = x.to(device)
-        x = attack.generate(x=x)
-        predictions = classifier.predict(x)
-        y = one_hot(np.array(y.numpy()), 10)
-        target_class = np.argmax(y, axis=1)
-        predicted_class = np.argmax(predictions, axis=1)
-        total_correct += np.sum(predicted_class == target_class)
-    return total_correct / len(dataset_loader.dataset)
-
-# def accuracy_FGSM(classifier, dataset_loader):
-#     attack = FastGradientMethod(estimator=classifier, eps=0.3)
-#     total_correct = 0
-#     error=0
-#     corr = 0
-#     for x, y in dataset_loader:
-# #         x = x.to(device)
-#         try:
-#             x = attack.generate(x=x)
-#             predictions = classifier.predict(x)
-#             y = one_hot(np.array(y.numpy()), 10)
-#             target_class = np.argmax(y, axis=1)
-#             predicted_class = np.argmax(predictions, axis=1)
-#             total_correct += np.sum(predicted_class == target_class)
-#             corr = corr+1
-#         except:
-#             error=error+1
-#             continue
-#     print('num err: ', error)
-#     print('actual acc: ', total_correct/corr)
-#     return total_correct / len(dataset_loader.dataset)
-
-print('********************')
-# for i in range(100):
-#     print(torch.min(testset.__getitem__(i)[0]))
-#     print(torch.max(testset.__getitem__(i)[0]))
-# print(torch.max(testset[0]))
 print(folder, ' time: ', endtime)
 
 class mnist_samples(Dataset):
@@ -638,43 +405,99 @@ class mnist_samples(Dataset):
         self.len = leng
         self.iid = iid
     def __len__(self):
-#             return 425
             return self.len
 
     def __getitem__(self, idx):
         x,y = self.dataset[idx+self.len*self.iid]
         return x,y
-test_samples = mnist_samples(testset,1000,7)
-# test_loader_samples = DataLoader(test_samples, batch_size=1, shuffle=False, num_workers=2, drop_last=False)
+        
+test_samples = mnist_samples(testset,32,4)
 test_loader_samples = DataLoader(test_samples, batch_size=100, shuffle=False, num_workers=2, drop_last=False)
 
-# Step 7: Evaluate the ART classifier on adversarial test examples
+def evaluate_model(model, dataset_loader, attack=None, attack_name="Clean", device=None):
+    model.eval()
+    if device is None:
+        device = next(model.parameters()).device
 
+    y_true_all, y_pred_all = [], []
 
-accuracy_clean = accuracy_clean(classifier, testloader)
-print("Accuracy on benign test examples: {}%".format(accuracy_clean * 100))
+    for i, (x, y) in enumerate(dataset_loader):
+        x, y = x.to(device), y.to(device)
 
-accuracy = accuracy_FGSM(classifier, test_loader_samples)
-print("Accuracy on adversarial test examples: {}%".format(accuracy * 100))
+        if attack is not None:
+            x = attack(x, y)
 
-# accuracy = accuracy_CW(classifier, testloader)
-# print("Accuracy on adversarial test examples: {}%".format(accuracy * 100))
+        with torch.no_grad():
+            outputs = model(x)
+            predicted_class = outputs.argmax(dim=1)
 
+        y_true_all.extend(y.cpu().numpy())
+        y_pred_all.extend(predicted_class.cpu().numpy())
 
-accuracy = accuracy_PGD(classifier, testloader)
-print("Accuracy on adversarial test examples: {}%".format(accuracy * 100))
+    acc = (torch.tensor(y_true_all) == torch.tensor(y_pred_all)).float().mean().item()
+    precision = precision_score(y_true_all, y_pred_all, average='macro', zero_division=0)
+    recall = recall_score(y_true_all, y_pred_all, average='macro', zero_division=0)
+    f1 = f1_score(y_true_all, y_pred_all, average='macro', zero_division=0)
 
-# from robustbench.data import _load_dataset
+    print(f"\n=== {attack_name} RESULTS ===")
+    print(f"Accuracy:  {acc * 100:.2f}%")
+    print(f"Precision: {precision * 100:.2f}%")
+    print(f"Recall:    {recall * 100:.2f}%")
+    print(f"F1-score:  {f1 * 100:.2f}%\n")
 
-# # from robustbench.data import load_cifar10
-# epsilon = 0.3
-# batch_size = 50
+    return acc, precision, recall, f1
 
-# # x_test, y_test = load_cifar10(n_examples=500)
-# x_test, y_test = _load_dataset(testset,50)
+def accuracy_clean(model, dataset_loader, device):
+    return evaluate_model(model, dataset_loader, None, "Clean", device)
 
+def accuracy_FGSM(model, dataset_loader, eps, device, normalize):
+    attack = torchattacks.FGSM(model, eps=eps)
+    mean = [0.485, 0.456, 0.406]
+    std  = [0.229, 0.224, 0.225]
+    if normalize:
+        attack.set_normalization_used(mean=mean, std=std)
 
-# from autoattack import AutoAttack
-# adversary = AutoAttack(model, norm='Linf', eps=epsilon, version='standard')
+    return evaluate_model(model, dataset_loader, attack, f"FGSM (ε={eps})", device)
 
-# x_adv = adversary.run_standard_evaluation(x_test, y_test, bs=batch_size)
+def accuracy_PGD(model, dataset_loader, eps, device, normalize):
+    attack = torchattacks.PGD(model, eps=eps)   
+    mean = [0.485, 0.456, 0.406]
+    std  = [0.229, 0.224, 0.225]
+    if normalize:
+        attack.set_normalization_used(mean=mean, std=std)
+
+    return evaluate_model(model, dataset_loader, attack, f"PGD (ε={eps})", device)
+
+def accuracy_MIM(model, dataset_loader, eps, device, normalize):
+    attack = torchattacks.MIFGSM(model, eps=eps) 
+    mean = [0.485, 0.456, 0.406]
+    std  = [0.229, 0.224, 0.225]
+    if normalize:
+        attack.set_normalization_used(mean=mean, std=std)
+
+    return evaluate_model(model, dataset_loader, attack, f"MIM (ε={eps})", device)
+    
+def accuracy_AutoAttack(model, dataset_loader, num_classes, eps, device, normalize):
+    attack = torchattacks.AutoAttack(model, eps=eps, n_classes=num_classes)
+    mean = [0.485, 0.456, 0.406]
+    std  = [0.229, 0.224, 0.225]
+    if normalize:
+        attack.set_normalization_used(mean=mean, std=std)
+
+    return evaluate_model(model, dataset_loader, attack, f"AutoAttack (ε={eps})", device)
+
+acc, prec, rec, f1 = accuracy_clean(model, testloader, device)
+
+all_eps = [0.01, 8/255, 0.04, 0.055, 0.07, 0.085, 0.1, 0.115, 0.13, 0.15, 0.175, 0.2]
+    
+for eps in all_eps:
+    accuracy_FGSM(model, testloader, eps, device, args.normalize)
+
+for eps in all_eps:
+    accuracy_PGD(model, testloader, eps, device, args.normalize)
+
+for eps in all_eps:
+    accuracy_MIM(model, testloader, eps, device, args.normalize)
+
+for eps in all_eps:
+    accuracy_AutoAttack(model, testloader, num_classes, eps, device, args.normalize)
