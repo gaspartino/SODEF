@@ -103,40 +103,27 @@ class ORTHFC(nn.Module):
     
     
 class MLP_OUT_LINEAR(nn.Module):
-    def __init__(self):
+    def __init__(self, out_features=10):
         super(MLP_OUT_LINEAR, self).__init__()
-        self.fc0 = nn.Linear(64, 10)
+        self.fc0 = nn.Linear(64, out_features)
     def forward(self, input_):
         h1 = self.fc0(input_)
         return h1
 
-
-
-    
-fc_max = './EXP/fc_maxrowdistance_64_10/ckpt.pth'
-saved_temp = torch.load(fc_max)
-matrix_temp = saved_temp['matrix']
-print(matrix_temp.shape)
-
-
 class MLP_OUT_BALL(nn.Module):
-    def __init__(self):
+    def __init__(self, out_features=10):
         super(MLP_OUT_BALL, self).__init__()
-        self.fc0 = nn.Linear(64, 10, bias=False)
-        self.fc0.weight.data = matrix_temp
+        self.fc0 = nn.Linear(64, out_features, bias=False)
     def forward(self, input_):
         h1 = self.fc0(input_)
         return h1  
-        
-
-        
-
+         
 class fcs(nn.Module):
 
     def __init__(self, in_features=512):
         super(fcs, self).__init__()
         self.dropout = 0.1
-        self.merge_net = nn.Sequential(nn.Linear(in_features=512,
+        self.merge_net = nn.Sequential(nn.Linear(in_features=in_features,
                                                  out_features=2048),
                                        nn.Tanh(),
                                        nn.Linear(in_features=2048,
