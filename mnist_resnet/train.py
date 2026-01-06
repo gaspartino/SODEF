@@ -16,7 +16,6 @@ import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 
 from model import *
-from model_lip import *
 from types import SimpleNamespace
 from torch.nn.parameter import Parameter
 from torch.utils.data import Dataset, DataLoader
@@ -135,10 +134,8 @@ def lisa_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
     return train_loader, test_loader, train_eval_loader, 7
 
 
-def bstl_loaders(train_batch_size=256, test_batch_size=64, normalize=False, is_lip=True):
-    dim = 32 if is_lip else 64
-
-    transform_list = [transforms.Resize((dim, 32)), transforms.ToTensor()]
+def bstl_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
+    transform_list = [transforms.Resize((64, 32)), transforms.ToTensor()]
 
     if normalize:
         transform_list.append(
@@ -201,32 +198,8 @@ else:
     trainloader, testloader, train_eval_loader, testset, num_classes = bstl_loaders(
         train_batch_size=args.batch_size,
         test_batch_size=1024,
-        normalize=args.normalize,
-        is_lip=args.is_lip
+        normalize=args.normalize
     )
-    
-class LipConvExtractor(nn.Module):
-    def __init__(self, lip_model):
-        super().__init__()
-        self.conv1 = lip_model.LipCNNConv1
-        self.conv2 = lip_model.LipCNNConv2
-        self.conv3 = lip_model.LipCNNConv3
-        self.conv4 = lip_model.LipCNNConv4
-        self.flatten = nn.Flatten()
-
-    def forward(self, x):
-        L = torch.eye(x.shape[1], dtype=torch.float64, device=x.device)
-
-        x, L = self.conv1(x, L)
-        x = nn.ReLU()(x)
-        x, L = self.conv2(x, L)
-        x = nn.ReLU()(x)
-        x, L = self.conv3(x, L)
-        x = nn.ReLU()(x)
-        x, L = self.conv4(x, L)
-        x = nn.ReLU()(x)
-
-        return x
 
 print('==> Building model..')
 
