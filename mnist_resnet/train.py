@@ -1,28 +1,30 @@
-from torch import nn
+import os
+import math
+import random
+import argparse
+import logging
+import numpy as np
 import torch
+import geotorch
+import kagglehub
+import torchvision
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 import torchvision.datasets as datasets
-import torchvision
 import torchvision.transforms as transforms
-import torch.backends.cudnn as cudnn
-import logging
-from torch.nn.parameter import Parameter
-import geotorch
-import math
-import random
-import numpy as np
-import os
-import argparse
-from torchdiffeq import odeint_adjoint as odeint
-from torch.utils.data import Dataset, DataLoader
+
 from model import *
+from model_lip import *
+from types import SimpleNamespace
+from torch.nn.parameter import Parameter
+from torch.utils.data import Dataset, DataLoader
+from torchdiffeq import odeint_adjoint as odeint
+from torchvision.models import resnet18, ResNet18_Weights
+from torchvision.datasets import MNIST, CIFAR10, ImageFolder
 
-
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 train_savepath = './data/MNIST_train_resnet_final.npz'
 test_savepath = './data/MNIST_test_resnet_final.npz'
@@ -32,10 +34,11 @@ folder_savemodel = './EXP/MNIST_resnet_final'
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--batch-size', default=128, type=int)
+    parser.add_argument('--batch-size', default=512, type=int)
     parser.add_argument('--data-dir', default='../cifar-data', type=str)
+    parser.add_argument('--dataset', default='lisa', type=str)
+    parser.add_argument('--normalize', action='store_true', help='Ativa normalização dos dados')
     parser.add_argument('--epsilon', default=8, type=int)
-    parser.add_argument('--out-dir', default='train_fgsm_output', type=str, help='Output directory')
     parser.add_argument('--seed', default=0, type=int, help='Random seed')
     return parser.parse_args()
 
@@ -54,18 +57,13 @@ def seed_torch(seed=0):
     
 seed_torch()
 
-
-
 def makedirs(dirname):
     if not os.path.exists(dirname):
         os.makedirs(dirname)
 
-
 device = 'cuda' 
 best_acc = 0 
-start_epoch = 0  
-
-    
+start_epoch = 0   
 
 def inf_generator(iterable):
     iterator = iterable.__iter__()
@@ -107,31 +105,141 @@ def get_mnist_loaders(data_aug=False, batch_size=128, test_batch_size=1000, perc
 
     return train_loader, test_loader, train_eval_loader
 
+def lisa_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
+    path = kagglehub.dataset_download("chandanakuntala/cropped-lisa-traffic-light-dataset")
+    
+    print("Path to dataset files:", path)
 
-trainloader, testloader, train_eval_loader = get_mnist_loaders(
-    False, 128, 1000
-)
+    train_dir = f"{path}/cropped_lisa_1/train_1"
+    val_dir = f"{path}/cropped_lisa_1/val_1"
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    transform_list = [transforms.Resize((32, 32)), transforms.ToTensor()]
+
+    if normalize:
+        transform_list.append(
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])
+        )
+
+    transform = transforms.Compose(transform_list)
+
+    train_dataset = ImageFolder(train_dir, transform=transform)
+    test_dataset = ImageFolder(val_dir, transform=transform)
+
+    train_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=True, num_workers=2)
+    test_loader = DataLoader(test_dataset, batch_size=test_batch_size, shuffle=False, num_workers=2)
+    train_eval_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=False, num_workers=2)
+
+    return train_loader, test_loader, train_eval_loader, 7
 
 
+def bstl_loaders(train_batch_size=256, test_batch_size=64, normalize=False, is_lip=True):
+    dim = 32 if is_lip else 64
 
+    transform_list = [transforms.Resize((dim, 32)), transforms.ToTensor()]
 
+    if normalize:
+        transform_list.append(
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])
+        )
+
+    transform = transforms.Compose(transform_list)
+    
+    data_dir = '/kaggle/input/bstl-dataset'
+    train_dir = f"{data_dir}/train"
+    test_dir = f"{data_dir}/test"
+
+    train_data = ImageFolder(root=train_dir, transform=transform)
+    test_data = ImageFolder(root=test_dir, transform=transform)
+
+    train_loader = DataLoader(train_data, batch_size=train_batch_size,
+                             shuffle=True, pin_memory=True)
+    test_loader = DataLoader(test_data, batch_size=test_batch_size,
+                            shuffle=False, pin_memory=True)
+    train_eval_loader = DataLoader(train_data, batch_size=train_batch_size,
+                             shuffle=False, pin_memory=True)
+    return train_loader, test_loader, train_eval_loader, 4
+
+def cifar10_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
+    transform_list = [transforms.Resize((32, 32)), transforms.ToTensor()]
+
+    if normalize:
+        transform_list.append(
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])
+        )
+
+    transform = transforms.Compose(transform_list)
+    
+    train_loader = DataLoader(CIFAR10('data', train=True, download=True, transform=transform),
+                             batch_size=train_batch_size, shuffle=True, pin_memory=True)
+    train_eval_loader = DataLoader(CIFAR10('data', train=True, download=True, transform=transform),
+                            batch_size=train_batch_size, shuffle=False, pin_memory=True)
+    test_loader = DataLoader(CIFAR10('data', train=False, download=True, transform=transform),
+                            batch_size=test_batch_size, shuffle=False, pin_memory=True)
+
+    test_dataset = CIFAR10('data', train=False, download=True, transform=transform)
+    
+    return train_loader, test_loader, train_eval_loader, test_dataset, 10
+
+if args.dataset == 'lisa':
+    trainloader, testloader, train_eval_loader, testset, num_classes = lisa_loaders(
+        train_batch_size=args.batch_size,
+        test_batch_size=args.batch_size,
+        normalize=args.normalize
+    )
+elif args.dataset == 'cifar10':
+    trainloader, testloader, train_eval_loader, testset, num_classes = cifar10_loaders(
+        train_batch_size=args.batch_size,
+        test_batch_size=args.batch_size,
+        normalize=args.normalize
+    )
+else:
+    trainloader, testloader, train_eval_loader, testset, num_classes = bstl_loaders(
+        train_batch_size=args.batch_size,
+        test_batch_size=1024,
+        normalize=args.normalize,
+        is_lip=args.is_lip
+    )
+    
+class LipConvExtractor(nn.Module):
+    def __init__(self, lip_model):
+        super().__init__()
+        self.conv1 = lip_model.LipCNNConv1
+        self.conv2 = lip_model.LipCNNConv2
+        self.conv3 = lip_model.LipCNNConv3
+        self.conv4 = lip_model.LipCNNConv4
+        self.flatten = nn.Flatten()
+
+    def forward(self, x):
+        L = torch.eye(x.shape[1], dtype=torch.float64, device=x.device)
+
+        x, L = self.conv1(x, L)
+        x = nn.ReLU()(x)
+        x, L = self.conv2(x, L)
+        x = nn.ReLU()(x)
+        x, L = self.conv3(x, L)
+        x = nn.ReLU()(x)
+        x, L = self.conv4(x, L)
+        x = nn.ReLU()(x)
+
+        return x
 
 print('==> Building model..')
-from models import *
 
-net = ResNet18()
-net.conv1 = nn.Conv2d(1, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+net = resnet18(weights=ResNet18_Weights.DEFAULT)
 net = net.to(device)
 
 net = nn.Sequential(*list(net.children())[0:-1])
 
-# fcs_temp = fcs()
 fcs_temp = fcs()
-
-fc_layers = MLP_OUT_BALL()
-for param in fc_layers.parameters():
-    param.requires_grad = False
+fc_layers = MLP_OUT_BALL(num_classes)
+    
 net = nn.Sequential(*net, fcs_temp, fc_layers).to(device)
 
 print(net)
@@ -140,68 +248,41 @@ criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(net.parameters(), lr=0.0001, eps=1e-4, amsgrad=True)
 
 
-def save_training_feature(model, dataset_loader):
-    x_save = []
-    y_save = []
+def save_feature(model, dataset_loader, save_path):
+    x_save, y_save = [], []
     modulelist = list(model)
+
     for x, y in dataset_loader:
         x = x.to(device)
-        y_ = np.array(y.numpy())
+        y_ = y.numpy()
 
-        for l in modulelist[0:6]:
+        for l in modulelist[:-2]:
             x = l(x)
-        x = net[6](x[..., 0, 0])
-        xo = x
 
-        x_ = xo.cpu().detach().numpy()
+        x = net[-2](x[..., 0, 0])
+        x_ = x.cpu().detach().numpy()
+
         x_save.append(x_)
         y_save.append(y_)
 
-    x_save = np.concatenate(x_save)
-    y_save = np.concatenate(y_save)
-
-    np.savez(train_savepath, x_save=x_save, y_save=y_save)
+    np.savez(save_path, x_save=np.concatenate(x_save), y_save=np.concatenate(y_save))
 
 
-def save_testing_feature(model, dataset_loader):
-    x_save = []
-    y_save = []
-    modulelist = list(model)
-    for x, y in dataset_loader:
-        x = x.to(device)
-        y_ = np.array(y.numpy())
-
-        for l in modulelist[0:6]:
-            x = l(x)
-        x = net[6](x[..., 0, 0])
-        xo = x
-        x_ = xo.cpu().detach().numpy()
-        x_save.append(x_)
-        y_save.append(y_)
-
-    x_save = np.concatenate(x_save)
-    y_save = np.concatenate(y_save)
-
-    np.savez(test_savepath, x_save=x_save, y_save=y_save)
-
-
-# Training
-def train(epoch):
-    print('\nEpoch: %d' % epoch)
+def train(epoch, trainloader):
     net.train()
-    train_loss = 0
-    correct = 0
-    total = 0
+    train_loss, correct, total = 0, 0, 0
     modulelist = list(net)
+
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
-        x = inputs
 
-        for l in modulelist[0:6]:
+        x = inputs
+        for l in modulelist[:-2]:
             x = l(x)
-        x = net[6](x[..., 0, 0])
-        x = net[7](x)
+
+        x = net[-2](x[..., 0, 0])
+        x = net[-1](x)
         outputs = x
 
         loss = criterion(outputs, targets)
@@ -213,67 +294,56 @@ def train(epoch):
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
 
-        print(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-              % (train_loss / (batch_idx + 1), 100. * correct / total, correct, total))
+    acc = 100. * correct / total
+    print(f"\nTrain in epoch {epoch+1}: accuracy = {round(acc, 2)}%")
 
-
-def test(epoch):
+def test(epoch, testloader, save_model_path, train_eval_loader):
     global best_acc
     net.eval()
-    test_loss = 0
-    correct = 0
-    total = 0
+    test_loss, correct, total = 0, 0, 0
     modulelist = list(net)
+
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(testloader):
             inputs, targets = inputs.to(device), targets.to(device)
+
             x = inputs
-            for l in modulelist[0:6]:
-                #             print(l)
-                #             print(x.shape)
+            for l in modulelist[:-2]:
                 x = l(x)
 
-            x = net[6](x[..., 0, 0])
-            x = net[7](x)
+            x = net[-2](x[..., 0, 0])
+            x = net[-1](x)
             outputs = x
-            loss = criterion(outputs, targets)
 
+            loss = criterion(outputs, targets)
             test_loss += loss.item()
+
             _, predicted = outputs.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
 
-            print(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                  % (test_loss / (batch_idx + 1), 100. * correct / total, correct, total))
-
-    # Save checkpoint.
+            
     acc = 100. * correct / total
+    print(f"Test in epoch {epoch+1}: accuracy = {round(acc, 2)}%")
     if acc > best_acc:
-        print('Saving..')
         state = {
             'net': net.state_dict(),
             'acc': acc,
             'epoch': epoch,
         }
-        #         if not os.path.isdir('checkpoint'):
-        #             os.mkdir('checkpoint')
-        #         torch.save(state, './checkpoint/ckpt.pth')
         torch.save(state, folder_savemodel + '/ckpt.pth')
         best_acc = acc
 
-        save_training_feature(net, train_eval_loader)
-        print('----')
-        save_testing_feature(net, testloader)
-        print('------------')
-
+        save_feature(net, train_eval_loader, train_savepath)
+        save_feature(net, testloader, test_savepath)
 
 ############################################### Phase 1 ################################################
 makedirs(folder_savemodel)
 makedirs('./data')
-for epoch in range(0, 25):
-    train(epoch)
-    test(epoch)
 
+for epoch in range(40):
+    train(epoch, trainloader)
+    test(epoch, testloader, './models/ckpt.pth', train_eval_loader)
 ################################################ Phase 2 ################################################
 weight_diag = 10
 weight_offdiag = 10
@@ -306,7 +376,7 @@ class ConcatFC(nn.Module):
     def forward(self, t, x):
         return self._layer(x)
 
-class ODEfunc_mlp(nn.Module):  # dense_resnet_relu1,2,7
+class ODEfunc_mlp(nn.Module): 
 
     def __init__(self, dim):
         super(ODEfunc_mlp, self).__init__()
@@ -352,9 +422,9 @@ class Flatten(nn.Module):
 
 class MLP_OUT(nn.Module):
 
-    def __init__(self):
+    def __init__(self, num_classes=10):
         super(MLP_OUT, self).__init__()
-        self.fc0 = nn.Linear(fc_dim, 10)
+        self.fc0 = nn.Linear(fc_dim, num_classes)
 
     def forward(self, input_):
         h1 = self.fc0(input_)
@@ -369,7 +439,7 @@ def accuracy(model, dataset_loader):
     total_correct = 0
     for x, y in dataset_loader:
         x = x.to(device)
-        y = one_hot(np.array(y.numpy()), 10)
+        y = one_hot(np.array(y.numpy()), 7)
 
         target_class = np.argmax(y, axis=1)
         predicted_class = np.argmax(model(x).cpu().detach().numpy(), axis=1)
@@ -382,7 +452,6 @@ def count_parameters(model):
 
 
 def df_dz_regularizer(f, z):
-    #     print("+++++++++++")
     regu_diag = 0.
     regu_offdiag = 0.0
     for ii in np.random.choice(z.shape[0], min(numm, z.shape[0]), replace=False):
@@ -394,37 +463,24 @@ def df_dz_regularizer(f, z):
 
         tempdiag = torch.diagonal(batchijacobian, 0)
         regu_diag += torch.exp(exponent * (tempdiag + trans))
-        #         print(regu_diag)
 
         offdiat = torch.sum(
             torch.abs(batchijacobian) * ((-1 * torch.eye(batchijacobian.shape[0]).to(device) + 0.5) * 2), dim=0)
         off_diagtemp = torch.exp(exponent_off * (offdiat + transoffdig))
-        #         off_diagtemp = torch.exp(exponent*(torch.sum(torch.abs(batchijacobian)*((-1*torch.eye(batchijacobian.shape[0]).to(device)+0.5)*2), dim=0)+transoffdig))
         regu_offdiag += off_diagtemp
 
-    #     a = tempdiag<-0.000001
-    #     aa = tempdiag[a]
-    #     print('tempdiag dim  ', tempdiag.shape)
-    print('diag mean: ', tempdiag.mean().item())
-    print('offdiag mean: ', offdiat.mean().item())
     return regu_diag / numm, regu_offdiag / numm
 
 
 def f_regularizer(f, z):
     tempf = torch.abs(odefunc(torch.tensor(1.0).to(device), z))
     regu_f = torch.pow(exponent_f * tempf, 2)
-    #     regu_f = torch.exp(exponent_f*tempf+trans_f)
-    #     regu_f = torch.log(tempf+1e-8)
-    print('tempf: ', tempf.mean().item())
-
     return regu_f
 
 
 def critialpoint_regularizer(y1):
     regu4 = torch.linalg.norm(y1, dim=1)
     regu4 = regu4.mean()
-    print('regu4 norm: ', regu4)
-    #     regu4 = torch.pow(regu4,2)
     regu4 = torch.exp(-0.1 * regu4 + 5)
     return regu4.mean()
 
@@ -471,7 +527,7 @@ makedirs(odesavefolder)
 odefunc = ODEfunc_mlp(0)
 
 feature_layers = [ODEBlocktemp(odefunc)]
-fc_layers = [MLP_OUT()]
+fc_layers = [MLP_OUT(num_classes)]
 
 for param in fc_layers[0].parameters():
     param.requires_grad = False
@@ -502,7 +558,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=1e-2, eps=1e-3, amsgrad=True
 best_acc = 0
 tempi = 0
 
-for itr in range(40 * batches_per_epoch):
+for itr in range(10 * batches_per_epoch):
     # break
 
     optimizer.zero_grad()
@@ -516,29 +572,25 @@ for itr in range(40 * batches_per_epoch):
     for l in modulelist[1:]:
         x = l(x)
     logits = x
-    y00 = y0  # .clone().detach().requires_grad_(True)
+    y00 = y0  
 
     regu1, regu2 = df_dz_regularizer(odefunc, y00)
     regu1 = regu1.mean()
     regu2 = regu2.mean()
-    print("regu1:weight_diag " + str(regu1.item()) + ':' + str(weight_diag))
-    print("regu2:weight_offdiag " + str(regu2.item()) + ':' + str(weight_offdiag))
     regu3 = f_regularizer(odefunc, y00)
     regu3 = regu3.mean()
-    print("regu3:weight_f " + str(regu3.item()) + ':' + str(weight_f))
     loss = weight_f * regu3 + weight_diag * regu1 + weight_offdiag * regu2
-    #         loss = weight_f*regu3
 
     if itr % 100 == 1:
         torch.save({'state_dict': model.state_dict(), 'args': args},
                    os.path.join(odesavefolder, 'model_diag.pth' + str(itr // 100)))
-    print("odesavefolder  ", odesavefolder)
 
     loss.backward()
     optimizer.step()
     torch.cuda.empty_cache()
 
     if itr % batches_per_epoch == 0:
+        print(f"Epoch {itr}/{10 * batches_per_epoch}")
         if itr == 0:
             continue
         with torch.no_grad():
@@ -551,8 +603,8 @@ for itr in range(40 * batches_per_epoch):
 endtime = 5
 layernum = 0
 
-folder = './EXP/dense_resnet_final/model_15.pth'
-saved = torch.load(folder)
+folder = './EXP/dense_resnet_final/model_9.pth'
+saved = torch.load(folder, weights_only=False)
 print('load...', folder)
 statedic = saved['state_dict']
 args = saved['args']
@@ -585,7 +637,7 @@ class ODEBlock(nn.Module):
 makedirs(savefolder_fc)
 odefunc = ODEfunc_mlp(0)
 feature_layers = [ODEBlock(odefunc)]
-fc_layers = [MLP_OUT()]
+fc_layers = [MLP_OUT(num_classes)]
 model = nn.Sequential(*feature_layers, *fc_layers).to(device)
 model.load_state_dict(statedic)
 for param in odefunc.parameters():
