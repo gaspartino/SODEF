@@ -1,5 +1,3 @@
-%%writefile /kaggle/working/SODEF/mnist_resnet/attack.py
-
 import os
 import argparse
 import logging
