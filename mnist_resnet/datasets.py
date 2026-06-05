@@ -72,7 +72,7 @@ def bstl_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
 
     transform = transforms.Compose(transform_list)
     
-    data_dir = '/kaggle/input/bstl-dataset'
+    data_dir = '/kaggle/input/datasets/andrevinic/bstl-dataset'
     train_dir = f"{data_dir}/train"
     test_dir = f"{data_dir}/test"
 
