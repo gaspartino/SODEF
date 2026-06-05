@@ -107,7 +107,7 @@ for loop_idx in range(args.total_loops):
         acc = 100. * correct / total
         print(f"\nTrain in epoch {epoch+1}: accuracy = {round(acc, 2)}%")
     
-    def test(epoch, testloader, save_model_path, train_eval_loader):
+    def test(epoch, testloader, train_eval_loader):
         global best_acc
         net.eval()
         test_loss, correct, total = 0, 0, 0
@@ -137,7 +137,7 @@ for loop_idx in range(args.total_loops):
         print(f"Test in epoch {epoch+1}: accuracy = {round(acc, 2)}%")
         if acc > best_acc:
             state = {'net': net.state_dict(), 'acc': acc, 'epoch': epoch,}
-            torch.save(state, args.folder_savemodel + f'/extractor{args.total_loops}.pth')
+            torch.save(state, args.folder_savemodel + f'/extractor{loop_idx}.pth')
             best_acc = acc
     
             save_feature(net, train_eval_loader, args.train_savepath)
@@ -149,7 +149,7 @@ for loop_idx in range(args.total_loops):
     
     for epoch in range(args.epochs_phase1):
         train(epoch, trainloader)
-        test(epoch, testloader, './models/ckpt.pth', train_eval_loader)
+        test(epoch, testloader, train_eval_loader)
         
     ################################################ Phase 2 ################################################
     weight_diag = 10
@@ -449,6 +449,6 @@ for loop_idx in range(args.total_loops):
                 val_acc = accuracy(model, test_loader, num_classes)
                 train_acc = accuracy(model, train_loader__, num_classes)
                 if val_acc > best_acc:
-                    torch.save({'state_dict': model.state_dict(), 'args': args}, os.path.join(savefolder_fc, f'sodef_dense{args.total_loops}.pth'))
+                    torch.save({'state_dict': model.state_dict(), 'args': args}, os.path.join(savefolder_fc, f'sodef_dense{loop_idx}.pth'))
                     best_acc = val_acc
                 print("Epoch {:04d}|Train Acc {:.4f} | Test Acc {:.4f}".format(itr // batches_per_epoch, train_acc, val_acc))
