@@ -79,9 +79,9 @@ def bstl_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
     train_dataset = ImageFolder(root=train_dir, transform=transform)
     test_dataset = ImageFolder(root=test_dir, transform=transform)
 
-    train_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=True, pin_memory=True)
-    test_loader = DataLoader(test_dataset, batch_size=test_batch_size, shuffle=False, pin_memory=True)
-    train_eval_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=False, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=test_batch_size, shuffle=False)
+    train_eval_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=False)
     
     return train_loader, test_loader, train_eval_loader, test_dataset, 4
 
