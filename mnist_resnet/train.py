@@ -140,16 +140,16 @@ for loop_idx in range(args.total_loops):
             torch.save(state, args.folder_savemodel + f'/extractor{args.total_loops}.pth')
             best_acc = acc
     
-            save_feature(net, train_eval_loader, train_savepath)
-            save_feature(net, testloader, test_savepath)
+            save_feature(net, train_eval_loader, args.train_savepath)
+            save_feature(net, testloader, args.test_savepath)
     
     ############################################### Phase 1 ################################################
     makedirs(args.folder_savemodel)
     makedirs('./data')
     
-    for epoch in range(args.epochs_phase1):
-        train(epoch, trainloader)
-        test(epoch, testloader, './models/ckpt.pth', train_eval_loader)
+    #for epoch in range(args.epochs_phase1):
+        #train(epoch, trainloader)
+        #test(epoch, testloader, './models/ckpt.pth', train_eval_loader)
         
     ################################################ Phase 2 ################################################
     weight_diag = 10
@@ -313,9 +313,9 @@ for loop_idx in range(args.total_loops):
     criterion = nn.CrossEntropyLoss().to(device)
     regularizer = nn.MSELoss()
     
-    train_loader = DataLoader(DensemnistDataset(args.train_savepath), batch_size=args.batch_size, shuffle=True, num_workers=1)
-    train_loader__ = DataLoader(DensemnistDataset(args.train_savepath), batch_size=args.batch_size, shuffle=False, num_workers=1)
-    test_loader = DataLoader(DensemnistDataset(args.test_savepath), batch_size=args.batch_size, shuffle=False, num_workers=1)
+    train_loader = DataLoader(DenseDataset(args.train_savepath), batch_size=args.batch_size, shuffle=True, num_workers=1)
+    train_loader__ = DataLoader(DenseDataset(args.train_savepath), batch_size=args.batch_size, shuffle=False, num_workers=1)
+    test_loader = DataLoader(DenseDataset(args.test_savepath), batch_size=args.batch_size, shuffle=False, num_workers=1)
     
     data_gen = inf_generator(train_loader)
     batches_per_epoch = len(train_loader)
@@ -323,7 +323,8 @@ for loop_idx in range(args.total_loops):
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-2, eps=1e-3, amsgrad=True)
     
     best_acc = 0
-    
+    last_model_path = None
+
     for itr in range(args.epochs_phase2 * batches_per_epoch):
         optimizer.zero_grad()
         x, y = data_gen.__next__()
@@ -352,21 +353,23 @@ for loop_idx in range(args.total_loops):
         loss.backward()
         optimizer.step()
         torch.cuda.empty_cache()
-    
+
         if itr % batches_per_epoch == 0:
             print(f"Epoch {itr}/{args.epochs_phase2 * batches_per_epoch}")
+        
             if itr == 0:
                 continue
+        
             with torch.no_grad():
-                if True:  
-                    torch.save({'state_dict': model.state_dict(), 'args': args},
-                               os.path.join(odesavefolder, 'model_' + str(itr // batches_per_epoch) + '.pth'))
+                last_model_path = os.path.join(odesavefolder, f"model_{itr // batches_per_epoch}.pth")
+        
+                torch.save({'state_dict': model.state_dict(), 'args': args}, last_model_path)
     
     ################################################ Phase 3, train final FC ################################################
     endtime = 5
     layernum = 0
     
-    folder = './EXP/dense_resnet_final/model_9.pth'
+    folder = last_model_path
     saved = torch.load(folder, weights_only=False)
     print('load...', folder)
     statedic = saved['state_dict']
@@ -407,9 +410,9 @@ for loop_idx in range(args.total_loops):
     criterion = nn.CrossEntropyLoss().to(device)
     regularizer = nn.MSELoss()
     
-    train_loader = DataLoader(DensemnistDataset(train_savepath), batch_size=args.batch_size, shuffle=True, num_workers=1)
-    train_loader__ = DataLoader(DensemnistDataset(train_savepath), batch_size=args.batch_size, shuffle=False, num_workers=1)
-    test_loader = DataLoader(DensemnistDataset(test_savepath), batch_size=args.batch_size, shuffle=False, num_workers=1)
+    train_loader = DataLoader(DenseDataset(args.train_savepath), batch_size=args.batch_size, shuffle=True, num_workers=1)
+    train_loader__ = DataLoader(DenseDataset(args.train_savepath), batch_size=args.batch_size, shuffle=False, num_workers=1)
+    test_loader = DataLoader(DenseDataset(args.test_savepath), batch_size=args.batch_size, shuffle=False, num_workers=1)
     
     data_gen = inf_generator(train_loader)
     batches_per_epoch = len(train_loader)
