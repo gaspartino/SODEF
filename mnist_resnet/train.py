@@ -147,9 +147,9 @@ for loop_idx in range(args.total_loops):
     makedirs(args.folder_savemodel)
     makedirs('./data')
     
-    #for epoch in range(args.epochs_phase1):
-        #train(epoch, trainloader)
-        #test(epoch, testloader, './models/ckpt.pth', train_eval_loader)
+    for epoch in range(args.epochs_phase1):
+        train(epoch, trainloader)
+        test(epoch, testloader, './models/ckpt.pth', train_eval_loader)
         
     ################################################ Phase 2 ################################################
     weight_diag = 10
