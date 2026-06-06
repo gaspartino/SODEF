@@ -36,6 +36,7 @@ endtime = 5
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--total_loops', '-tl', type=int, default=1)
+parser.add_argument('-ia', '--ignore_autoattack', action='store_true')
 args = parser.parse_args()
 
 for loop_idx in range(args.total_loops):
