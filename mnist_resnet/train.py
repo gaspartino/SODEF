@@ -29,7 +29,7 @@ from torchvision.datasets import MNIST, CIFAR10, ImageFolder
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 fc_dim = 64
 args = get_args() 
-seed_torch(random.randint(0, 100))
+#seed_torch(random.randint(0, 100))
 
 device = 'cuda' 
 best_acc = 0 
