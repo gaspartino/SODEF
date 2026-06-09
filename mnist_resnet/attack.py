@@ -41,7 +41,7 @@ args_attack = parser.parse_args()
 
 for loop_idx in range(args_attack.total_loops):
     if args.total_loops > 1:
-        print(f"\n========== Loop {loop_idx + 1}/{args.total_loops} ==========\n")
+        print(f"\n========== Loop {loop_idx + 1}/{args_attack.total_loops} ==========\n")
 
     folder_dense = f'./EXP/resnetfct5_15/sodef_dense{loop_idx}.pth'
     folder_extractor = f'./EXP/MNIST_resnet_final/extractor{loop_idx}.pth'
