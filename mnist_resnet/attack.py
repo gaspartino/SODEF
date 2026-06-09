@@ -37,9 +37,9 @@ endtime = 5
 parser = argparse.ArgumentParser()
 parser.add_argument('--total_loops', '-tl', type=int, default=1)
 parser.add_argument('-ia', '--ignore_autoattack', action='store_true')
-args = parser.parse_args()
+args_attack = parser.parse_args()
 
-for loop_idx in range(args.total_loops):
+for loop_idx in range(args_attack.total_loops):
     if args.total_loops > 1:
         print(f"\n========== Loop {loop_idx + 1}/{args.total_loops} ==========\n")
 
@@ -380,6 +380,6 @@ for loop_idx in range(args.total_loops):
     for eps in all_eps:
         accuracy_MIM(model, testloader, eps, device, args.normalize)
     
-    if not args.ignore_autoattack:
+    if not args_attack.ignore_autoattack:
         for eps in all_eps:
             accuracy_AutoAttack(model, testloader, num_classes, eps, device, args.normalize)
