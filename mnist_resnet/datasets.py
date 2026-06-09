@@ -33,9 +33,6 @@ def get_mnist_loaders(data_aug=False, batch_size=128, test_batch_size=1000, perc
 
 def lisa_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
     path = kagglehub.dataset_download("chandanakuntala/cropped-lisa-traffic-light-dataset")
-    
-    print("Path to dataset files:", path)
-
     train_dir = f"{path}/cropped_lisa_1/train_1"
     val_dir = f"{path}/cropped_lisa_1/val_1"
 
@@ -62,6 +59,10 @@ def lisa_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
 
 
 def bstl_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
+    path = kagglehub.dataset_download("andrevinic/bstl-dataset")
+    train_dir = f"{path}/train"
+    test_dir = f"{path}/test"
+    
     transform_list = [transforms.Resize((64, 32)), transforms.ToTensor()]
 
     if normalize:
@@ -71,10 +72,6 @@ def bstl_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
         )
 
     transform = transforms.Compose(transform_list)
-    
-    data_dir = '/kaggle/input/datasets/andrevinic/bstl-dataset'
-    train_dir = f"{data_dir}/train"
-    test_dir = f"{data_dir}/test"
 
     train_dataset = ImageFolder(root=train_dir, transform=transform)
     test_dataset = ImageFolder(root=test_dir, transform=transform)
