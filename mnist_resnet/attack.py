@@ -380,6 +380,6 @@ for loop_idx in range(args.total_loops):
     for eps in all_eps:
         accuracy_MIM(model, testloader, eps, device, args.normalize)
     
-    args.ignore_autoattack:
+    if not args.ignore_autoattack:
         for eps in all_eps:
             accuracy_AutoAttack(model, testloader, num_classes, eps, device, args.normalize)
