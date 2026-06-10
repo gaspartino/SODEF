@@ -37,14 +37,15 @@ endtime = 5
 parser = argparse.ArgumentParser()
 parser.add_argument('--total_loops', '-tl', type=int, default=1)
 parser.add_argument('-ia', '--ignore_autoattack', action='store_true')
+parser.add_argument('--dataset', type=str, default='lisa')
 args_attack = parser.parse_args()
 
 for loop_idx in range(args_attack.total_loops):
     if args_attack.total_loops > 1:
         print(f"\n========== Loop {loop_idx + 1}/{args_attack.total_loops} ==========\n")
 
-    folder_dense = f'./EXP/resnetfct5_15/{args.dataset}/dense{loop_idx}.pth'
-    folder_extractor = f'./EXP/extractor/{args.dataset}/extractor{loop_idx}.pth'
+    folder_dense = f'./EXP/resnetfct5_15/{args_attack.dataset}/dense{loop_idx}.pth'
+    folder_extractor = f'./EXP/extractor/{args_attack.dataset}/extractor{loop_idx}.pth'
     
     act = torch.sin 
     
