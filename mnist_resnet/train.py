@@ -145,7 +145,7 @@ for loop_idx in range(args.total_loops):
             save_feature(net, testloader, args.test_savepath)
     
     ############################################### Phase 1 ################################################
-    makedirs(args.folder_savemodel)
+    makedirs(f"{args.folder_savemodel}/{args.dataset}")
     makedirs('./data')
     
     for epoch in range(args.epochs_phase1):
