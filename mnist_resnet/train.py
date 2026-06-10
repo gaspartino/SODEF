@@ -399,7 +399,7 @@ for loop_idx in range(args.total_loops):
         def nfe(self, value):
             self.odefunc.nfe = value
     
-    makedirs(savefolder_fc)
+    makedirs(f"{savefolder_fc}/{args.dataset}")
     odefunc = ODEfunc_mlp(0)
     feature_layers = [ODEBlock(odefunc)]
     fc_layers = [MLP_OUT(num_classes)]
