@@ -450,6 +450,9 @@ for loop_idx in range(args.total_loops):
                 val_acc = accuracy(model, test_loader, num_classes)
                 train_acc = accuracy(model, train_loader__, num_classes)
                 if val_acc > best_acc:
-                    torch.save({'state_dict': model.state_dict(), 'args': args}, os.path.join(savefolder_fc, f'/{args.dataset}/dense{loop_idx}.pth'))
+                    torch.save(
+                        {'state_dict': model.state_dict(), 'args': args},
+                        os.path.join(savefolder_fc, f'{args.dataset}/dense{loop_idx}.pth')
+                    )                    
                     best_acc = val_acc
                 print("Epoch {:04d}|Train Acc {:.4f} | Test Acc {:.4f}".format(itr // batches_per_epoch, train_acc, val_acc))
