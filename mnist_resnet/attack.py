@@ -40,7 +40,7 @@ parser.add_argument('-ia', '--ignore_autoattack', action='store_true')
 args_attack = parser.parse_args()
 
 for loop_idx in range(args_attack.total_loops):
-    if args.total_loops > 1:
+    if args_attack.total_loops > 1:
         print(f"\n========== Loop {loop_idx + 1}/{args_attack.total_loops} ==========\n")
 
     folder_dense = f'./EXP/resnetfct5_15/sodef_dense{loop_idx}.pth'
