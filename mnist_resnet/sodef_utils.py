@@ -22,7 +22,7 @@ def get_args():
 
     parser.add_argument('--train-savepath', type=str, default='./data/train_resnet_final.npz')
     parser.add_argument('--test-savepath', type=str, default='./data/test_resnet_final.npz')
-    parser.add_argument('--folder-savemodel', type=str, default='./EXP/MNIST_resnet_final')
+    parser.add_argument('--folder-savemodel', type=str, default='./EXP/models')
 
     return parser.parse_args()
 
