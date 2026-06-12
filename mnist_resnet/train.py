@@ -314,9 +314,9 @@ for loop_idx in range(args.total_loops):
     criterion = nn.CrossEntropyLoss().to(device)
     regularizer = nn.MSELoss()
     
-    train_loader = DataLoader(DenseDataset(args.train_savepath), batch_size=args.batch_size, shuffle=True, num_workers=1)
-    train_loader__ = DataLoader(DenseDataset(args.train_savepath), batch_size=args.batch_size, shuffle=False, num_workers=1)
-    test_loader = DataLoader(DenseDataset(args.test_savepath), batch_size=args.batch_size, shuffle=False, num_workers=1)
+    train_loader = DataLoader(DenseDataset(args.train_savepath), batch_size=args.batch_size, shuffle=True)
+    train_loader__ = DataLoader(DenseDataset(args.train_savepath), batch_size=args.batch_size, shuffle=False)
+    test_loader = DataLoader(DenseDataset(args.test_savepath), batch_size=args.batch_size, shuffle=False)
     
     data_gen = inf_generator(train_loader)
     batches_per_epoch = len(train_loader)
@@ -411,9 +411,9 @@ for loop_idx in range(args.total_loops):
     criterion = nn.CrossEntropyLoss().to(device)
     regularizer = nn.MSELoss()
     
-    train_loader = DataLoader(DenseDataset(args.train_savepath), batch_size=args.batch_size, shuffle=True, num_workers=1)
-    train_loader__ = DataLoader(DenseDataset(args.train_savepath), batch_size=args.batch_size, shuffle=False, num_workers=1)
-    test_loader = DataLoader(DenseDataset(args.test_savepath), batch_size=args.batch_size, shuffle=False, num_workers=1)
+    train_loader = DataLoader(DenseDataset(args.train_savepath), batch_size=args.batch_size, shuffle=True)
+    train_loader__ = DataLoader(DenseDataset(args.train_savepath), batch_size=args.batch_size, shuffle=False)
+    test_loader = DataLoader(DenseDataset(args.test_savepath), batch_size=args.batch_size, shuffle=False)
     
     data_gen = inf_generator(train_loader)
     batches_per_epoch = len(train_loader)
