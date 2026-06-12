@@ -75,38 +75,6 @@ def inf_generator(iterable):
             yield iterator.__next__()
         except StopIteration:
             iterator = iterable.__iter__()
-            
-def get_mnist_loaders(data_aug=False, batch_size=128, test_batch_size=1000, perc=1.0):
-    if data_aug:
-        transform_train = transforms.Compose([
-            transforms.RandomCrop(28, padding=4),
-            transforms.ToTensor(),
-        ])
-    else:
-        transform_train = transforms.Compose([
-            transforms.ToTensor(),
-        ])
-
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-    ])
-
-    train_loader = DataLoader(
-        datasets.MNIST(root='.data/mnist', train=True, download=True, transform=transform_train), batch_size=batch_size,
-        shuffle=True, num_workers=1, drop_last=True
-    )
-
-    train_eval_loader = DataLoader(
-        datasets.MNIST(root='.data/mnist', train=True, download=True, transform=transform_test),
-        batch_size=batch_size, shuffle=False, num_workers=1, drop_last=True
-    )
-
-    test_loader = DataLoader(
-        datasets.MNIST(root='.data/mnist', train=False, download=True, transform=transform_test),
-        batch_size=batch_size, shuffle=False, num_workers=1, drop_last=True
-    )
-
-    return train_loader, test_loader, train_eval_loader
 
 def lisa_loaders(train_batch_size=256, test_batch_size=64, normalize=False):
     path = kagglehub.dataset_download("chandanakuntala/cropped-lisa-traffic-light-dataset")
@@ -489,16 +457,16 @@ regularizer = nn.MSELoss()
 
 train_loader = DataLoader(DensemnistDatasetTrain(),
                           batch_size=32,
-                          shuffle=True, num_workers=1
+                          shuffle=True
                           )
 train_loader__ = DataLoader(DensemnistDatasetTrain(),
                             batch_size=32,
-                            shuffle=True, num_workers=1
+                            shuffle=True
                             )
 
 test_loader = DataLoader(DensemnistDatasetTest(),
                          batch_size=32,
-                         shuffle=True, num_workers=1
+                         shuffle=True
                          )
 
 data_gen = inf_generator(train_loader)
@@ -599,15 +567,15 @@ regularizer = nn.MSELoss()
 
 train_loader = DataLoader(DensemnistDatasetTrain(),
                           batch_size=128,
-                          shuffle=True, num_workers=1
+                          shuffle=True
                           )
 train_loader__ = DataLoader(DensemnistDatasetTrain(),
                             batch_size=128,
-                            shuffle=True, num_workers=1
+                            shuffle=True
                             )
 test_loader = DataLoader(DensemnistDatasetTest(),
                          batch_size=128,
-                         shuffle=True, num_workers=1
+                         shuffle=True
                          )
 
 data_gen = inf_generator(train_loader)
